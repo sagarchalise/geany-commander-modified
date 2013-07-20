@@ -353,9 +353,10 @@ on_panel_key_press_event (GtkWidget    *widget,
 }
 
 static void
-fill_store (GtkListStore *store, GeanyDocument *doc)
+fill_store (GtkListStore *store)
 {
   guint i;
+  GeanyDocument *doc = document_get_current();
   //gt_symbol_print(sym, 0);
   //gt_tags_array_print(doc->tm_file->tags_array, stdout);
     
@@ -402,8 +403,6 @@ on_panel_hide (GtkWidget *widget,
 static void
 create_panel (void)
 {
-  GeanyDocument *doc = document_get_current();
-  if(doc->file_type){
   GtkWidget          *frame;
   GtkWidget          *box;
   GtkWidget          *scroll;
@@ -448,7 +447,7 @@ create_panel (void)
                                           G_TYPE_STRING,
                                           G_TYPE_ULONG);
                                           //G_TYPE_POINTER);
-  fill_store(plugin_data.store, doc);
+  fill_store(plugin_data.store);
   plugin_data.sort = gtk_tree_model_sort_new_with_model (GTK_TREE_MODEL (plugin_data.store));
   gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (plugin_data.sort),
                                         COL_LINE,
@@ -474,14 +473,16 @@ create_panel (void)
   gtk_container_add (GTK_CONTAINER (scroll), plugin_data.view);
   
   gtk_widget_show_all (frame);
-  }
 }
 
 static void
 on_kb_show_panel (guint key_id)
 {
+  GeanyDocument *doc = document_get_current();
+  if((DOC_FILENAME(doc) != GEANY_STRING_UNTITLED)  && doc->has_tags){
   create_panel();
   gtk_widget_show (plugin_data.panel);
+  }
 }
 
 void
