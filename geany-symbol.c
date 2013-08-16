@@ -479,7 +479,7 @@ static void
 on_kb_show_panel (guint key_id)
 {
   GeanyDocument *doc = document_get_current();
-  if((DOC_FILENAME(doc) != GEANY_STRING_UNTITLED)  && doc->has_tags){
+  if(DOC_VALID(doc) && ((DOC_FILENAME(doc) != GEANY_STRING_UNTITLED)  && doc->has_tags)){
   create_panel();
   gtk_widget_show (plugin_data.panel);
   }
