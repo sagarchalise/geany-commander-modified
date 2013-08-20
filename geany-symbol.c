@@ -82,9 +82,9 @@ struct {
 
 enum {
   COL_LABEL,
-   COL_NAME,
+  COL_NAME,
+  COL_TYPE,
   COL_LINE,
-  //~ COL_TYPE,
   COL_COUNT
 };
 void gt_tag_print(TMTag *tag, FILE *fp)
@@ -125,32 +125,25 @@ void gt_tags_array_print(GPtrArray *tags, FILE *fp)
 		gt_tag_print(tag, fp);
 	}
 }
-static inline gint
-get_score (const gchar *needle,
-           const gchar *haystack)
-{
-  if (needle == NULL || haystack == NULL ||
-      *needle == '\0' || *haystack == '\0') {
-    return 0;
-  }
 
-  return strcasestr(haystack, needle);
-}
-
-static gint
-key_score (const gchar *key_,
-           const gchar *text_)
+gboolean
+key_score (GtkTreeModel *model, GtkTreeIter  *iter)
 {
-  gchar  *text  = g_utf8_casefold (text_, -1);
-  gchar  *key   = g_utf8_casefold (key_, -1);
-  gint    score;
+    gchar *name;
+    gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
+    const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+    gchar  *haystack  = g_utf8_casefold (name, -1);
+    gchar  *needle   = g_utf8_casefold (key, -1);
+    gboolean score = TRUE;
   
-  score = get_score (key, text);
-  
-  g_free (text);
-  g_free (key);
-  
-  return score;
+    if (key == NULL || haystack == NULL ||
+        *needle == '\0' || *haystack == '\0') {
+        return score;
+    }
+    score = strcasestr(haystack, needle) > 1? TRUE : FALSE;
+    g_free (haystack);
+    g_free (needle);
+    return score;
 }
 
 static void jump_to_symbol(gchar *name, gboolean mark_all){
@@ -160,31 +153,6 @@ static void jump_to_symbol(gchar *name, gboolean mark_all){
         if (mark_all)
             search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
 }
-static gint
-sort_func (GtkTreeModel  *model,
-           GtkTreeIter   *a,
-           GtkTreeIter   *b,
-           gpointer       dummy)
-{
-  gint          scorea;
-  gint          scoreb;
-  gchar        *patha;
-  gchar        *pathb;
-
-  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-  
-  
-  gtk_tree_model_get (model, a, COL_NAME, &patha,  -1);
-  gtk_tree_model_get (model, b, COL_NAME, &pathb, -1);
-  
-  scorea = key_score (key, patha);
-  scoreb = key_score (key, pathb);
-  
-  g_free (patha);
-  g_free (pathb);
-  return scoreb - scorea;
-}
-
 static void
 tree_view_set_cursor_from_iter (GtkTreeView *view,
                                 GtkTreeIter *iter)
@@ -200,6 +168,19 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
         g_free(name);
   gtk_tree_path_free (path);
 }
+static gboolean
+visible_func (GtkTreeModel *model,
+              GtkTreeIter  *iter,
+              gpointer      data)
+{
+  /* Visible if row is non-empty and first column is "HI" */
+  gchar *name;
+  gint score;
+  gboolean visible;
+  visible = key_score(model, iter);
+  return visible;
+}
+
 
 static void
 on_entry_text_notify (GObject    *object,
@@ -214,15 +195,12 @@ on_entry_text_notify (GObject    *object,
    * back to the new filter.  this is somewhat hackish but since we don't
    * know the original sorting order, and GtkTreeSortable don't have a
    * resort() API anyway. */
-  gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (model));
-  gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (model),
-                                           sort_func, NULL, NULL);
-  
-  if (gtk_tree_model_get_iter_first (model, &iter)) {
-    tree_view_set_cursor_from_iter (view, &iter);
-  }
+    gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
+    gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
+   if (gtk_tree_model_get_iter_first (model, &iter)) {
+     tree_view_set_cursor_from_iter (view, &iter);
+   }
 }
-
 
 static void
 tree_view_move_focus (GtkTreeView    *view,
@@ -370,6 +348,7 @@ TMTag *tag;
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
                                        COL_NAME, tag->name,
+                                       COL_TYPE, type,
                                        COL_LINE, tag->atts.entry.line,
                                        -1);
         g_free (label);
@@ -411,8 +390,8 @@ create_panel (void)
   
   plugin_data.panel = g_object_new (GTK_TYPE_WINDOW,
                                     "decorated", FALSE,
-                                    "default-width", 300,
-                                    "default-height", 200,
+                                    "default-width", 250,
+                                    "default-height", 125,
                                     "transient-for", geany_data->main_widgets->window,
                                     "window-position", GTK_WIN_POS_CENTER_ON_PARENT,
                                     "type-hint", GDK_WINDOW_TYPE_HINT_DIALOG,
@@ -441,25 +420,25 @@ create_panel (void)
    g_signal_connect (plugin_data.entry, "activate",
                     G_CALLBACK (on_entry_activate), NULL);
    gtk_box_pack_start (GTK_BOX (box), plugin_data.entry, FALSE, TRUE, 0);
-  
+  //GtkTreePath *virtual_root = gtk_tree_path_new_from_indices(1, -1);
   plugin_data.store = gtk_list_store_new (COL_COUNT,
+                                          G_TYPE_STRING,
                                           G_TYPE_STRING,
                                           G_TYPE_STRING,
                                           G_TYPE_ULONG);
                                           //G_TYPE_POINTER);
   fill_store(plugin_data.store);
-  plugin_data.sort = gtk_tree_model_sort_new_with_model (GTK_TREE_MODEL (plugin_data.store));
-  gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (plugin_data.sort),
+  plugin_data.sort = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
+  GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.sort));
+  gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (sort),
                                         COL_LINE,
-                                        GTK_SORT_ASCENDING);
-  
+                                        GTK_SORT_ASCENDING);  
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          NULL);
   gtk_box_pack_start (GTK_BOX (box), scroll, TRUE, TRUE, 0);
-  
-  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (plugin_data.sort));
+  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL(plugin_data.sort));
   gtk_widget_set_can_focus (plugin_data.view, FALSE);
   gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (plugin_data.view), FALSE);
   cell = gtk_cell_renderer_text_new ();
