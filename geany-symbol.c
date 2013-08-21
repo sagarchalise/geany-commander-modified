@@ -81,12 +81,27 @@ struct {
 
 
 enum {
-  COL_LABEL,
+  COL_ICON,
   COL_NAME,
   COL_TYPE,
   COL_LINE,
   COL_COUNT
 };
+
+static GdkPixbuf *get_tag_icon(const gchar *icon_name)
+{
+	static GtkIconTheme *icon_theme = NULL;
+	static gint x = -1;
+
+	if (G_UNLIKELY(x < 0))
+	{
+		gint dummy;
+		icon_theme = gtk_icon_theme_get_default();
+		gtk_icon_size_lookup(GTK_ICON_SIZE_MENU, &x, &dummy);
+	}
+	return gtk_icon_theme_load_icon(icon_theme, icon_name, x, 0, NULL);
+}
+
 void gt_tag_print(TMTag *tag, FILE *fp)
 {
 	const char *type;
@@ -337,21 +352,61 @@ fill_store (GtkListStore *store)
   GeanyDocument *doc = document_get_current();
   //gt_symbol_print(sym, 0);
   //gt_tags_array_print(doc->tm_file->tags_array, stdout);
-    
 TMTag *tag;
     for (i = 0; i < doc->tm_file->tags_array->len; ++i)
 	{
-        const char *type;        
+        GdkPixbuf *icon;
 		tag = TM_TAG(doc->tm_file->tags_array->pdata[i]);
-        type = tm_tag_type_name(tag);
-        gchar *label = g_markup_printf_escaped ("<small><i>%s</i> %s</small>", type, tag->name);
+        if(tm_tag_class_t == tag->type){
+            icon = get_tag_icon("classviewer-class");
+        }
+        else if(tm_tag_member_t == tag->type){
+            icon = get_tag_icon("classviewer-member");
+        }
+        else if(tm_tag_macro_t == tag->type){
+            icon = get_tag_icon("classviewer-macro");
+        }
+        else if(tm_tag_namespace_t == tag->type){
+            icon = get_tag_icon("classviewer-namespace");
+        }
+        else if(tm_tag_struct_t == tag->type){
+            icon = get_tag_icon("classviewer-struct");
+        }
+        else if(tm_tag_variable_t == tag->type || tm_tag_field_t == tag->type){
+            icon = get_tag_icon("classviewer-var");
+        }
+        else if(tm_tag_method_t == tag->type || tm_tag_function_t == tag->type){
+            icon = get_tag_icon("classviewer-method");
+        }
+        else{
+            icon = get_tag_icon("classviewer-other");
+        }
+        //~ switch(tag->type){
+            //~ case tm_tag_class_t:
+              //~ icon = get_tag_icon("classviewer-class");
+            //~ case tm_tag_member_t:
+              //~ icon = get_tag_icon("classviewer-member");
+            //~ case tm_tag_variable_t:
+            //~ case tm_tag_field_t:
+              //~ icon = get_tag_icon("classviewer-var");
+            //~ case tm_tag_macro_t:
+              //~ icon = get_tag_icon("classviewer-macro");
+            //~ case tm_tag_namespace_t:
+              //~ icon = get_tag_icon("classviewer-namespace");
+            //~ case tm_tag_struct_t:
+              //~ icon = get_tag_icon("classviewer-struct");
+            //~ case tm_tag_function_t:
+            //~ case tm_tag_method_t:
+              //~ icon = get_tag_icon("classviewer-method");
+            //~ default:
+              //~ icon = get_tag_icon("classviewer-other");
+        //~ }
         gtk_list_store_insert_with_values (store, NULL, -1,
-                                       COL_LABEL, label,
+                                       COL_ICON, icon,
                                        COL_NAME, tag->name,
-                                       COL_TYPE, type,
+                                       COL_TYPE, tag->type,
                                        COL_LINE, tag->atts.entry.line,
                                        -1);
-        g_free (label);
     }
 
 }
@@ -386,12 +441,12 @@ create_panel (void)
   GtkWidget          *box;
   GtkWidget          *scroll;
   GtkTreeViewColumn  *col;
-  GtkCellRenderer    *cell;
+  GtkCellRenderer    *cell, *icon_renderer;
   
   plugin_data.panel = g_object_new (GTK_TYPE_WINDOW,
                                     "decorated", FALSE,
-                                    "default-width", 250,
-                                    "default-height", 125,
+                                    "default-width", 230,
+                                    "default-height", 115,
                                     "transient-for", geany_data->main_widgets->window,
                                     "window-position", GTK_WIN_POS_CENTER_ON_PARENT,
                                     "type-hint", GDK_WINDOW_TYPE_HINT_DIALOG,
@@ -420,13 +475,11 @@ create_panel (void)
    g_signal_connect (plugin_data.entry, "activate",
                     G_CALLBACK (on_entry_activate), NULL);
    gtk_box_pack_start (GTK_BOX (box), plugin_data.entry, FALSE, TRUE, 0);
-  //GtkTreePath *virtual_root = gtk_tree_path_new_from_indices(1, -1);
   plugin_data.store = gtk_list_store_new (COL_COUNT,
+                                          GDK_TYPE_PIXBUF,
                                           G_TYPE_STRING,
-                                          G_TYPE_STRING,
-                                          G_TYPE_STRING,
+                                          G_TYPE_INT,
                                           G_TYPE_ULONG);
-                                          //G_TYPE_POINTER);
   fill_store(plugin_data.store);
   plugin_data.sort = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
   GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.sort));
@@ -442,13 +495,17 @@ create_panel (void)
   gtk_widget_set_can_focus (plugin_data.view, FALSE);
   gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (plugin_data.view), FALSE);
   cell = gtk_cell_renderer_text_new ();
+  icon_renderer = gtk_cell_renderer_pixbuf_new();
   g_object_set (cell, "ellipsize", PANGO_ELLIPSIZE_END, NULL);
-  col = gtk_tree_view_column_new_with_attributes (NULL, cell,
-                                                  "markup", COL_LABEL,
-                                                  NULL);
-  gtk_tree_view_append_column (GTK_TREE_VIEW (plugin_data.view), col);
-  //~ g_signal_connect (plugin_data.view, "row-activated",
-                    //~ G_CALLBACK (on_view_row_activated), NULL);
+  col = gtk_tree_view_column_new();
+
+	gtk_tree_view_column_pack_start(col, icon_renderer, FALSE);
+  	gtk_tree_view_column_set_attributes(col, icon_renderer, "pixbuf", COL_ICON, NULL);
+  	g_object_set(icon_renderer, "xalign", 0.0, NULL);
+  	gtk_tree_view_column_pack_start(col, cell, TRUE);
+  	gtk_tree_view_column_set_attributes(col, cell, "text", COL_NAME, NULL);
+    gtk_tree_view_column_set_title(col, NULL);
+    gtk_tree_view_append_column (GTK_TREE_VIEW (plugin_data.view), col);
   gtk_container_add (GTK_CONTAINER (scroll), plugin_data.view);
   
   gtk_widget_show_all (frame);
