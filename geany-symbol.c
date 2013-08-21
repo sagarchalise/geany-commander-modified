@@ -79,6 +79,11 @@ struct {
   NULL
 };
 
+enum{
+    COL_TYPE_VAR,
+    COL_TYPE_CLASS,
+    COL_TYPE_ALL
+};
 
 enum {
   COL_ICON,
@@ -140,13 +145,7 @@ void gt_tags_array_print(GPtrArray *tags, FILE *fp)
 		gt_tag_print(tag, fp);
 	}
 }
-
-gboolean
-key_score (GtkTreeModel *model, GtkTreeIter  *iter)
-{
-    gchar *name;
-    gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
-    const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+gboolean get_score(const gchar *key, const gchar *name){
     gchar  *haystack  = g_utf8_casefold (name, -1);
     gchar  *needle   = g_utf8_casefold (key, -1);
     gboolean score = TRUE;
@@ -159,6 +158,43 @@ key_score (GtkTreeModel *model, GtkTreeIter  *iter)
     g_free (haystack);
     g_free (needle);
     return score;
+}
+
+gboolean
+key_score (GtkTreeModel *model, GtkTreeIter  *iter)
+{
+    gchar *name;
+    gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
+    const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+    gint type = COL_TYPE_ALL;
+    if (g_str_has_prefix (key, "@")) {
+        key += 1;
+        type = COL_TYPE_CLASS;
+    } else if (g_str_has_prefix (key, "#")) {
+        key += 1;
+        type = COL_TYPE_VAR;
+    }else{
+        type = COL_TYPE_ALL;
+    }
+    gint tag_type;
+    gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
+    switch(type){
+        case COL_TYPE_ALL:
+           return get_score(key, name);
+        case COL_TYPE_CLASS:
+          if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
+              return get_score(key, name);
+          }
+          else
+            return FALSE;
+        case COL_TYPE_VAR:
+            if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t){
+              return get_score(key, name);
+          }
+          else
+            return FALSE;
+    }
+    
 }
 
 static void jump_to_symbol(gchar *name, gboolean mark_all){
@@ -381,26 +417,6 @@ TMTag *tag;
         else{
             icon = get_tag_icon("classviewer-other");
         }
-        //~ switch(tag->type){
-            //~ case tm_tag_class_t:
-              //~ icon = get_tag_icon("classviewer-class");
-            //~ case tm_tag_member_t:
-              //~ icon = get_tag_icon("classviewer-member");
-            //~ case tm_tag_variable_t:
-            //~ case tm_tag_field_t:
-              //~ icon = get_tag_icon("classviewer-var");
-            //~ case tm_tag_macro_t:
-              //~ icon = get_tag_icon("classviewer-macro");
-            //~ case tm_tag_namespace_t:
-              //~ icon = get_tag_icon("classviewer-namespace");
-            //~ case tm_tag_struct_t:
-              //~ icon = get_tag_icon("classviewer-struct");
-            //~ case tm_tag_function_t:
-            //~ case tm_tag_method_t:
-              //~ icon = get_tag_icon("classviewer-method");
-            //~ default:
-              //~ icon = get_tag_icon("classviewer-other");
-        //~ }
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_ICON, icon,
                                        COL_NAME, tag->name,
