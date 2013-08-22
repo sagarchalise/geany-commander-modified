@@ -162,23 +162,27 @@ key_score (GtkTreeModel *model, GtkTreeIter  *iter)
     const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
     gint tag_type;
     gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
+    gboolean return_value = TRUE;
     if (g_str_has_prefix (key, "@")) {
         key += 1;
         if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
-              return get_score(key, name);
+              return_value = get_score(key, name);
           }
-          else
-            return FALSE;
+        else{
+         return_value = FALSE;
+        }
     } else if (g_str_has_prefix (key, "#")) {
         key += 1;
         if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t || tag_type == tm_tag_macro_t){
-              return get_score(key, name);
+              return_value = get_score(key, name);
           }
-          else
-            return FALSE;
+          else{
+            return_value = FALSE;
+        }
     }else{
-        return get_score(key, name);
+        return_value = get_score(key, name);
     }
+    return return_value;
 }
 
 static void jump_to_symbol(gchar *name, gboolean mark_all){
