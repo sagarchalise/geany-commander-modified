@@ -78,7 +78,6 @@ struct {
   NULL, NULL,
   NULL
 };
-
 enum {
   COL_ICON,
   COL_NAME,
@@ -155,18 +154,14 @@ gboolean get_score(const gchar *key, const gchar *name){
 }
 
 gboolean
-key_score (GtkTreeModel *model, GtkTreeIter  *iter)
+key_score (gchar *tag_name, gint tag_type)
 {
-    gchar *name;
-    gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
     const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-    gint tag_type;
-    gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
     gboolean return_value = TRUE;
     if (g_str_has_prefix (key, "@")) {
         key += 1;
         if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
-              return_value = get_score(key, name);
+              return_value = get_score(key, tag_name);
           }
         else{
          return_value = FALSE;
@@ -174,13 +169,13 @@ key_score (GtkTreeModel *model, GtkTreeIter  *iter)
     } else if (g_str_has_prefix (key, "#")) {
         key += 1;
         if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t || tag_type == tm_tag_macro_t){
-              return_value = get_score(key, name);
+              return_value = get_score(key, tag_name);
           }
           else{
             return_value = FALSE;
         }
     }else{
-        return_value = get_score(key, name);
+        return_value = get_score(key, tag_name);
     }
     return return_value;
 }
@@ -212,11 +207,13 @@ visible_func (GtkTreeModel *model,
               GtkTreeIter  *iter,
               gpointer      data)
 {
-  /* Visible if row is non-empty and first column is "HI" */
-  gchar *name;
-  gint score;
   gboolean visible;
-  visible = key_score(model, iter);
+  gchar *name;
+  gint type;
+  gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
+  gtk_tree_model_get (model, iter, COL_TYPE, &type, -1);
+  visible = key_score(name, type);
+  g_free(name);
   return visible;
 }
 
