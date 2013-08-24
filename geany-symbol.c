@@ -70,8 +70,7 @@ struct {
   GtkWidget    *entry;
   GtkWidget    *view;
   GtkListStore *store;
-  GtkTreeModel *sort;
-  
+  GtkTreeModel *filter;
   GtkTreePath  *last_path;
 } plugin_data = {
   NULL, NULL, NULL,
@@ -152,34 +151,6 @@ gboolean get_score(const gchar *key, const gchar *name){
     g_free (needle);
     return score;
 }
-
-gboolean
-key_score (gchar *tag_name, gint tag_type)
-{
-    const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-    gboolean return_value = TRUE;
-    if (g_str_has_prefix (key, "@")) {
-        key += 1;
-        if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
-              return_value = get_score(key, tag_name);
-          }
-        else{
-         return_value = FALSE;
-        }
-    } else if (g_str_has_prefix (key, "#")) {
-        key += 1;
-        if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t || tag_type == tm_tag_macro_t){
-              return_value = get_score(key, tag_name);
-          }
-          else{
-            return_value = FALSE;
-        }
-    }else{
-        return_value = get_score(key, tag_name);
-    }
-    return return_value;
-}
-
 static void jump_to_symbol(gchar *name, gboolean mark_all){
         GeanyDocument *doc = document_get_current();
         symbols_goto_tag(name, TRUE);
@@ -207,13 +178,32 @@ visible_func (GtkTreeModel *model,
               GtkTreeIter  *iter,
               gpointer      data)
 {
-  gboolean visible;
-  gchar *name;
-  gint type;
-  gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
-  gtk_tree_model_get (model, iter, COL_TYPE, &type, -1);
-  visible = key_score(name, type);
-  g_free(name);
+  gboolean visible = TRUE;
+  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+  gchar *tag_name;
+  gint tag_type;
+  gtk_tree_model_get (model, iter, COL_NAME, &tag_name, -1);
+  gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
+  if (g_str_has_prefix (key, "@")) {
+        key += 1;
+        if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
+              visible = get_score(key, tag_name);
+          }
+        else{
+         visible = FALSE;
+        }
+    } else if (g_str_has_prefix (key, "#")) {
+        key += 1;
+        if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t || tag_type == tm_tag_macro_t){
+              visible = get_score(key, tag_name);
+          }
+          else{
+            visible = FALSE;
+        }
+    }else{
+        visible = get_score(key, tag_name);
+    }
+  g_free(tag_name);
   return visible;
 }
 
@@ -226,12 +216,7 @@ on_entry_text_notify (GObject    *object,
   GtkTreeIter   iter;
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
-  
-  /* we force re-sorting the whole model from how it was before, and the
-   * back to the new filter.  this is somewhat hackish but since we don't
-   * know the original sorting order, and GtkTreeSortable don't have a
-   * resort() API anyway. */
-    gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
+  gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
     gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
@@ -308,12 +293,9 @@ tree_view_activate_focused_row (GtkTreeView *view)
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
   sci_marker_delete_all(doc->editor->sci, 0);
   g_free(name);
-  //jump_to_symbol(name, FALSE);
   if (path) {
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
-    //gtk_tree_iter_free(&iter);
-    //g_free(name);
   }
 }
 static void
@@ -371,9 +353,8 @@ fill_store (GtkListStore *store)
 {
   guint i;
   GeanyDocument *doc = document_get_current();
-  //gt_symbol_print(sym, 0);
   //gt_tags_array_print(doc->tm_file->tags_array, stdout);
-TMTag *tag;
+  TMTag *tag;
     for (i = 0; i < doc->tm_file->tags_array->len; ++i)
 	{
         GdkPixbuf *icon;
@@ -462,7 +443,6 @@ create_panel (void)
                     G_CALLBACK (on_panel_hide), NULL);
   g_signal_connect (plugin_data.panel, "key-press-event",
                      G_CALLBACK (on_panel_key_press_event), NULL);
-  //~ 
   frame = gtk_frame_new (NULL);
   gtk_frame_set_shadow_type (GTK_FRAME (frame), GTK_SHADOW_IN);
   gtk_container_add (GTK_CONTAINER (plugin_data.panel), frame);
@@ -482,8 +462,8 @@ create_panel (void)
                                           G_TYPE_INT,
                                           G_TYPE_ULONG);
   fill_store(plugin_data.store);
-  plugin_data.sort = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
-  GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.sort));
+  plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
+  GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.filter));
   gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (sort),
                                         COL_LINE,
                                         GTK_SORT_ASCENDING);  
@@ -492,7 +472,7 @@ create_panel (void)
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          NULL);
   gtk_box_pack_start (GTK_BOX (box), scroll, TRUE, TRUE, 0);
-  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL(plugin_data.sort));
+  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL(plugin_data.filter));
   gtk_widget_set_can_focus (plugin_data.view, FALSE);
   gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (plugin_data.view), FALSE);
   cell = gtk_cell_renderer_text_new ();
