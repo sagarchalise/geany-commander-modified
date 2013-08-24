@@ -178,12 +178,12 @@ visible_func (GtkTreeModel *model,
               GtkTreeIter  *iter,
               gpointer      data)
 {
-  gboolean visible = TRUE;
-  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
   gchar *tag_name;
   gint tag_type;
   gtk_tree_model_get (model, iter, COL_NAME, &tag_name, -1);
   gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
+  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+  gboolean visible = TRUE;
   if (g_str_has_prefix (key, "@")) {
         key += 1;
         if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
