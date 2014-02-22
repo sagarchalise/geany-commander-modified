@@ -79,12 +79,51 @@ struct {
 };
 enum {
   COL_ICON,
+  COL_LABEL,
   COL_NAME,
   COL_TYPE,
   COL_LINE,
   COL_COUNT
 };
+static const gchar *get_symbol_name(GeanyDocument *doc, const TMTag *tag)
+{
+	gchar *utf8_name;
+	const gchar *scope = tag->atts.entry.scope;
+	static GString *buffer = NULL;	/* buffer will be small so we can keep it for reuse */
+	gboolean doc_is_utf8 = FALSE;
 
+	/* encodings_convert_to_utf8_from_charset() fails with charset "None", so skip conversion
+	 * for None at this point completely */
+	if (utils_str_equal(doc->encoding, "UTF-8") ||
+		utils_str_equal(doc->encoding, "None"))
+		doc_is_utf8 = TRUE;
+	else /* normally the tags will always be in UTF-8 since we parse from our buffer, but a
+		  * plugin might have called tm_source_file_update(), so check to be sure */
+		doc_is_utf8 = g_utf8_validate(tag->name, -1, NULL);
+
+	if (! doc_is_utf8)
+		utf8_name = encodings_convert_to_utf8_from_charset(tag->name,
+			-1, doc->encoding, TRUE);
+	else
+		utf8_name = tag->name;
+
+	if (utf8_name == NULL)
+		return NULL;
+
+	if (! buffer)
+		buffer = g_string_new(NULL);
+	else
+		g_string_truncate(buffer, 0);
+
+	g_string_append(buffer, utf8_name);
+
+	if (! doc_is_utf8)
+		g_free(utf8_name);
+
+	g_string_append_printf(buffer, " [%lu]", tag->atts.entry.line);
+
+	return buffer->str;
+}
 static GdkPixbuf *get_tag_icon(const gchar *icon_name)
 {
 	static GtkIconTheme *icon_theme = NULL;
@@ -146,17 +185,18 @@ gboolean get_score(const gchar *key, const gchar *name){
         *needle == '\0' || *haystack == '\0') {
         return score;
     }
-    score = strcasestr(haystack, needle) > 1? TRUE : FALSE;
+    score = strcasestr(haystack, needle) >= 1? TRUE : FALSE;
     g_free (haystack);
     g_free (needle);
     return score;
 }
-static void jump_to_symbol(gchar *name, gboolean mark_all){
-        GeanyDocument *doc = document_get_current();
-        symbols_goto_tag(name, TRUE);
-        editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
-        if (mark_all)
-            search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
+static void jump_to_symbol(gchar *name, gint line, gboolean mark_all){
+    GeanyDocument *doc = document_get_current();
+    editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
+    sci_marker_delete_all(doc->editor->sci, 0);
+    sci_goto_line(doc->editor->sci, line-1, TRUE);
+    if (mark_all)
+        search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
 }
 static void
 tree_view_set_cursor_from_iter (GtkTreeView *view,
@@ -168,8 +208,10 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
   gtk_tree_view_set_cursor (view, path, NULL, FALSE);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
     gchar *name;
+    gulong line;
         gtk_tree_model_get(model, iter, COL_NAME, &name, -1);
-        jump_to_symbol(name, TRUE);
+        gtk_tree_model_get(model, iter, COL_LINE, &line, -1);
+        jump_to_symbol(name, (gint)line, TRUE);
         g_free(name);
   gtk_tree_path_free (path);
 }
@@ -286,13 +328,13 @@ tree_view_activate_focused_row (GtkTreeView *view)
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   GtkTreeIter   iter;
   GeanyDocument *doc = document_get_current();
+    gulong line;
   gtk_tree_view_get_cursor (view, &path, &column);
   gtk_tree_model_get_iter (model, &iter, path);
-  gchar *name;
-  gtk_tree_model_get(model, &iter, COL_NAME, &name, -1);
+  gtk_tree_model_get(model, &iter, COL_LINE, &line, -1);
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
   sci_marker_delete_all(doc->editor->sci, 0);
-  g_free(name);
+  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);  
   if (path) {
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
@@ -313,9 +355,9 @@ on_panel_key_press_event (GtkWidget    *widget,
   GeanyDocument *old_doc = document_get_current();
   switch (event->keyval) {
     case GDK_KEY_Escape:
-    editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
+        editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
         sci_marker_delete_all(old_doc->editor->sci, 0);
-      gtk_widget_hide(widget);
+        gtk_widget_hide(widget);
       return TRUE;
     
     case GDK_KEY_Tab:
@@ -353,7 +395,7 @@ fill_store (GtkListStore *store)
 {
   guint i;
   GeanyDocument *doc = document_get_current();
-  //gt_tags_array_print(doc->tm_file->tags_array, stdout);
+  const gchar *name;
   TMTag *tag;
     for (i = 0; i < doc->tm_file->tags_array->len; ++i)
 	{
@@ -383,8 +425,10 @@ fill_store (GtkListStore *store)
         else{
             icon = get_tag_icon("classviewer-other");
         }
+        name = get_symbol_name(doc, tag);
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_ICON, icon,
+                                       COL_LABEL, name,
                                        COL_NAME, tag->name,
                                        COL_TYPE, tag->type,
                                        COL_LINE, tag->atts.entry.line,
@@ -459,6 +503,7 @@ create_panel (void)
   plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           GDK_TYPE_PIXBUF,
                                           G_TYPE_STRING,
+                                          G_TYPE_STRING,
                                           G_TYPE_INT,
                                           G_TYPE_ULONG);
   fill_store(plugin_data.store);
@@ -484,9 +529,9 @@ create_panel (void)
   	gtk_tree_view_column_set_attributes(col, icon_renderer, "pixbuf", COL_ICON, NULL);
   	g_object_set(icon_renderer, "xalign", 0.0, NULL);
   	gtk_tree_view_column_pack_start(col, cell, TRUE);
-  	gtk_tree_view_column_set_attributes(col, cell, "text", COL_NAME, NULL);
+  	gtk_tree_view_column_set_attributes(col, cell, "text", COL_LABEL, NULL);
     gtk_tree_view_column_set_title(col, NULL);
-    gtk_tree_view_append_column (GTK_TREE_VIEW (plugin_data.view), col);
+    gtk_tree_view_append_column ( GTK_TREE_VIEW (plugin_data.view), col);
   gtk_container_add (GTK_CONTAINER (scroll), plugin_data.view);
   
   gtk_widget_show_all (frame);
