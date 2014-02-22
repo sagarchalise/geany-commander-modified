@@ -194,6 +194,7 @@ static void jump_to_symbol(gchar *name, gint line, gboolean mark_all){
     GeanyDocument *doc = document_get_current();
     editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
     sci_marker_delete_all(doc->editor->sci, 0);
+    sci_set_marker_at_line(doc->editor->sci, line-1, 0);
     sci_goto_line(doc->editor->sci, line-1, TRUE);
     if (mark_all)
         search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
@@ -334,11 +335,11 @@ tree_view_activate_focused_row (GtkTreeView *view)
   gtk_tree_model_get(model, &iter, COL_LINE, &line, -1);
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
   sci_marker_delete_all(doc->editor->sci, 0);
-  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);  
   if (path) {
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
   }
+  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);  
 }
 static void
 on_entry_activate (GtkEntry  *entry,
