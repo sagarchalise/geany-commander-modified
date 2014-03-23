@@ -17,6 +17,7 @@
  *  
  */
 #include <tagmanager/tm_tagmanager.h>
+#include <gdk/gdkkeysyms.h>
 #include <geanyplugin.h>
 
 
