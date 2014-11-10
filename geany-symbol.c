@@ -89,7 +89,7 @@ enum {
 static const gchar *get_symbol_name(GeanyDocument *doc, const TMTag *tag)
 {
 	gchar *utf8_name;
-	const gchar *scope = tag->atts.entry.scope;
+	const gchar *scope = tag->scope;
 	static GString *buffer = NULL;	/* buffer will be small so we can keep it for reuse */
 	gboolean doc_is_utf8 = FALSE;
 
@@ -121,7 +121,7 @@ static const gchar *get_symbol_name(GeanyDocument *doc, const TMTag *tag)
 	if (! doc_is_utf8)
 		g_free(utf8_name);
 
-	g_string_append_printf(buffer, " [%lu]", tag->atts.entry.line);
+	g_string_append_printf(buffer, " [%lu]", tag->line);
 
 	return buffer->str;
 }
@@ -139,44 +139,44 @@ static GdkPixbuf *get_tag_icon(const gchar *icon_name)
 	return gtk_icon_theme_load_icon(icon_theme, icon_name, x, 0, NULL);
 }
 
-void gt_tag_print(TMTag *tag, FILE *fp)
-{
-	const char *type;
-	if (!tag || !fp)
-		return;
-	if (tm_tag_file_t == tag->type)
-	{
-		fprintf(fp, "%s\n", tag->name);
-		return;
-	}
-	type = tm_tag_type_name(tag);
-	if (type)
-		fprintf(fp, "Type: %s\n", type);
-	if (tag->atts.entry.var_type)
-		fprintf(fp, "Var Type: %s\n", tag->atts.entry.var_type);
-	if (tag->atts.entry.scope)
-		fprintf(fp, "Scope: %s\n", tag->atts.entry.scope);
-	fprintf(fp, "Name: %s\n", tag->name);
-	if (tag->atts.entry.arglist)
-		fprintf(fp, "Arglist: %s", tag->atts.entry.arglist);
-	if (tag->atts.entry.inheritance)
-		fprintf(fp, "Inheritance : %s\n", tag->atts.entry.inheritance);
-	if ((tag->atts.entry.file) && (tag->atts.entry.line > 0))
-		fprintf(fp, "Line: %ld", tag->atts.entry.line);
-	fprintf(fp, "\n");
-}
-void gt_tags_array_print(GPtrArray *tags, FILE *fp)
-{
-	guint i;
-	TMTag *tag;
-	if (!(tags && (tags->len > 0) && fp))
-		return;
-	for (i = 0; i < tags->len; ++i)
-	{
-		tag = TM_TAG(tags->pdata[i]);
-		gt_tag_print(tag, fp);
-	}
-}
+// void gt_tag_print(TMTag *tag, FILE *fp)
+// {
+	// const char *type;
+	// if (!tag || !fp)
+		// return;
+	// if (tm_tag_file_t == tag->type)
+	// {
+		// fprintf(fp, "%s\n", tag->name);
+		// return;
+	// }
+	// type = tm_tag_type_name(tag);
+	// if (type)
+		// fprintf(fp, "Type: %s\n", type);
+	// if (tag->var_type)
+		// fprintf(fp, "Var Type: %s\n", tag->var_type);
+	// if (tag->scope)
+		// fprintf(fp, "Scope: %s\n", tag->scope);
+	// fprintf(fp, "Name: %s\n", tag->name);
+	// if (tag->arglist)
+		// fprintf(fp, "Arglist: %s", tag->arglist);
+	// if (tag->inheritance)
+		// fprintf(fp, "Inheritance : %s\n", tag->inheritance);
+	// if ((tag->file) && (tag->line > 0))
+		// fprintf(fp, "Line: %ld", tag->line);
+	// fprintf(fp, "\n");
+// }
+// void gt_tags_array_print(GPtrArray *tags, FILE *fp)
+// {
+	// guint i;
+	// TMTag *tag;
+	// if (!(tags && (tags->len > 0) && fp))
+		// return;
+	// for (i = 0; i < tags->len; ++i)
+	// {
+		// tag = TM_TAG(tags->pdata[i]);
+		// gt_tag_print(tag, fp);
+	// }
+// }
 gboolean get_score(const gchar *key, const gchar *name){
     gchar  *haystack  = g_utf8_casefold (name, -1);
     gchar  *needle   = g_utf8_casefold (key, -1);
@@ -433,7 +433,7 @@ fill_store (GtkListStore *store)
                                        COL_LABEL, name,
                                        COL_NAME, tag->name,
                                        COL_TYPE, tag->type,
-                                       COL_LINE, tag->atts.entry.line,
+                                       COL_LINE, tag->line,
                                        -1);
     }
 
