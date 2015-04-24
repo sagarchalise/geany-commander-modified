@@ -1,33 +1,36 @@
 /*
- *  
+ *
  *  Copyright (C) 2012  Colomban Wendling <ban@herbesfolles.org>
- *  
+ *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
  *  the Free Software Foundation, either version 3 of the License, or
  *  (at your option) any later version.
- *  
+ *
  *  This program is distributed in the hope that it will be useful,
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *  
+ *
  *  You should have received a copy of the GNU General Public License
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *  
+ *
+#include <gtk/gtk.h>
+#include <string.h>
+#include <glib.h>
  */
-#include <tagmanager/tm_tagmanager.h>
-#include <gdk/gdkkeysyms.h>
+
 #include <geanyplugin.h>
+#include <gdk/gdkkeysyms.h>
+#include <tagmanager/tm_tagmanager.h>
 
 
 GeanyPlugin      *geany_plugin;
 GeanyData        *geany_data;
-GeanyFunctions   *geany_functions;
 
-PLUGIN_VERSION_CHECK(205)
+PLUGIN_VERSION_CHECK(211)
 
-PLUGIN_SET_INFO ("Geany Symbol", "Provides a panel for quick access to tags in current document.", "0.1", "Sagar Chalise <chalisesagar@gmail.com>")
+PLUGIN_SET_INFO ("Symbol Browser", "Provides a panel for quick access to tags and symbols in current document.", "0.1", "Sagar Chalise <chalisesagar@gmail.com>")
 
 
 /* GTK compatibility functions/macros */
@@ -62,7 +65,7 @@ PLUGIN_SET_INFO ("Geany Symbol", "Provides a panel for quick access to tags in c
 /* Plugin */
 
 enum {
-  KB_SHOW_PANEL,
+  KB_SHOW_BROWSER,
   KB_COUNT
 };
 
@@ -181,7 +184,7 @@ gboolean get_score(const gchar *key, const gchar *name){
     gchar  *haystack  = g_utf8_casefold (name, -1);
     gchar  *needle   = g_utf8_casefold (key, -1);
     gboolean score = TRUE;
-  
+
     if (key == NULL || haystack == NULL ||
         *needle == '\0' || *haystack == '\0') {
         return score;
@@ -194,18 +197,20 @@ gboolean get_score(const gchar *key, const gchar *name){
 static void jump_to_symbol(gchar *name, gint line, gboolean mark_all){
     GeanyDocument *doc = document_get_current();
     editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
-    sci_marker_delete_all(doc->editor->sci, 0);
-    sci_set_marker_at_line(doc->editor->sci, line-1, 0);
+    keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
+    if(!sci_is_marker_set_at_line(doc->editor->sci, line-1, 0))
+	sci_set_marker_at_line(doc->editor->sci, line-1, 0);
     sci_goto_line(doc->editor->sci, line-1, TRUE);
     if (mark_all)
-        search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
+	keybindings_send_command(GEANY_KEY_GROUP_SEARCH, GEANY_KEYS_SEARCH_MARKALL);
+        //search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
 }
 static void
 tree_view_set_cursor_from_iter (GtkTreeView *view,
                                 GtkTreeIter *iter)
 {
   GtkTreePath *path;
-  
+
   path = gtk_tree_model_get_path (gtk_tree_view_get_model (view), iter);
   gtk_tree_view_set_cursor (view, path, NULL, FALSE);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
@@ -285,14 +290,14 @@ tree_view_move_focus (GtkTreeView    *view,
         valid = gtk_tree_model_get_iter_first (model, &iter);
         if (valid && amount > 0) {
           GtkTreeIter prev;
-          
+
           do {
             prev = iter;
           } while (gtk_tree_model_iter_next (model, &iter));
           iter = prev;
         }
         break;
-      
+
       case GTK_MOVEMENT_DISPLAY_LINES:
         gtk_tree_model_get_iter (model, &iter, path);
         if (amount > 0) {
@@ -302,19 +307,19 @@ tree_view_move_focus (GtkTreeView    *view,
         } else if (amount < 0) {
           while ((valid = gtk_tree_path_prev (path)) && --amount > 0)
             ;
-          
+
           if (valid) {
             gtk_tree_model_get_iter (model, &iter, path);
           }
         }
         break;
-      
+
       default:
         g_assert_not_reached ();
     }
     gtk_tree_path_free (path);
   }
-  
+
   if (valid) {
     tree_view_set_cursor_from_iter (view, &iter);
   } else {
@@ -335,12 +340,13 @@ tree_view_activate_focused_row (GtkTreeView *view)
   gtk_tree_model_get_iter (model, &iter, path);
   gtk_tree_model_get(model, &iter, COL_LINE, &line, -1);
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
-  sci_marker_delete_all(doc->editor->sci, 0);
+  keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
+  //sci_marker_delete_all(doc->editor->sci, 0);
   if (path) {
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
   }
-  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);  
+  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);
 }
 static void
 on_entry_activate (GtkEntry  *entry,
@@ -358,28 +364,29 @@ on_panel_key_press_event (GtkWidget    *widget,
   switch (event->keyval) {
     case GDK_KEY_Escape:
         editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
-        sci_marker_delete_all(old_doc->editor->sci, 0);
+	keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
+        // sci_marker_delete_all(old_doc->editor->sci, 0);
         gtk_widget_hide(widget);
       return TRUE;
-    
+
     case GDK_KEY_Tab:
       /* avoid leaving the entry */
       return TRUE;
-    
+
     case GDK_KEY_Return:
     case GDK_KEY_KP_Enter:
     case GDK_KEY_ISO_Enter:
       tree_view_activate_focused_row (GTK_TREE_VIEW (plugin_data.view));
       gtk_widget_hide(widget);
       return TRUE;
-    
+
     case GDK_KEY_Page_Up:
     case GDK_KEY_Page_Down:
       tree_view_move_focus (GTK_TREE_VIEW (plugin_data.view),
                             GTK_MOVEMENT_DISPLAY_LINES,
                             event->keyval == GDK_KEY_Page_Up ? -1 : 1);
       return TRUE;
-    
+
     case GDK_KEY_Up:
     case GDK_KEY_Down: {
       tree_view_move_focus (GTK_TREE_VIEW (plugin_data.view),
@@ -388,7 +395,7 @@ on_panel_key_press_event (GtkWidget    *widget,
       return TRUE;
     }
   }
-  
+
   return FALSE;
 }
 
@@ -452,13 +459,13 @@ on_panel_hide (GtkWidget *widget,
                gpointer   dummy)
 {
   GtkTreeView  *view = GTK_TREE_VIEW (plugin_data.view);
-  
+
   if (plugin_data.last_path) {
     gtk_tree_path_free (plugin_data.last_path);
     plugin_data.last_path = NULL;
   }
   gtk_tree_view_get_cursor (view, &plugin_data.last_path, NULL);
-  
+
   gtk_list_store_clear (plugin_data.store);
 }
 
@@ -470,7 +477,7 @@ create_panel (void)
   GtkWidget          *scroll;
   GtkTreeViewColumn  *col;
   GtkCellRenderer    *cell, *icon_renderer;
-  
+
   plugin_data.panel = g_object_new (GTK_TYPE_WINDOW,
                                     "decorated", FALSE,
                                     "default-width", 230,
@@ -492,10 +499,10 @@ create_panel (void)
   frame = gtk_frame_new (NULL);
   gtk_frame_set_shadow_type (GTK_FRAME (frame), GTK_SHADOW_IN);
   gtk_container_add (GTK_CONTAINER (plugin_data.panel), frame);
-  
+
   box = gtk_vbox_new (FALSE, 0);
   gtk_container_add (GTK_CONTAINER (frame), box);
-  
+
    plugin_data.entry = gtk_entry_new ();
   g_signal_connect (plugin_data.entry, "notify::text",
                      G_CALLBACK (on_entry_text_notify), NULL);
@@ -513,7 +520,7 @@ create_panel (void)
   GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.filter));
   gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (sort),
                                         COL_LINE,
-                                        GTK_SORT_ASCENDING);  
+                                        GTK_SORT_ASCENDING);
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
@@ -535,7 +542,7 @@ create_panel (void)
     gtk_tree_view_column_set_title(col, NULL);
     gtk_tree_view_append_column ( GTK_TREE_VIEW (plugin_data.view), col);
   gtk_container_add (GTK_CONTAINER (scroll), plugin_data.view);
-  
+
   gtk_widget_show_all (frame);
 }
 
@@ -553,9 +560,9 @@ void
 plugin_init (GeanyData *data)
 {
   GeanyKeyGroup *group;
-  
+
   group = plugin_set_key_group (geany_plugin, "Jump Symbols", KB_COUNT, NULL);
-  keybindings_set_item (group, KB_SHOW_PANEL, on_kb_show_panel,
+  keybindings_set_item (group, KB_SHOW_BROWSER, on_kb_show_panel,
                         0, 0, "show_panel", _("Show Symbol List"), NULL);
 }
 
