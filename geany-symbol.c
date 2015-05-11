@@ -359,13 +359,11 @@ tree_view_activate_focused_row (GtkTreeView *view)
   gtk_tree_model_get(model, &iter, COL_LINE, &line, -1);
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
   keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
-  //sci_marker_delete_all(doc->editor->sci, 0);
   if (path) {
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
   }
   indicate_or_go_to_pos(doc->editor, name, line, FALSE);
-  //sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);
 }
 static void
 on_entry_activate (GtkEntry  *entry,
@@ -384,7 +382,6 @@ on_panel_key_press_event (GtkWidget    *widget,
     case GDK_KEY_Escape:
         editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
 	keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
-        // sci_marker_delete_all(old_doc->editor->sci, 0);
         gtk_widget_hide(widget);
       return TRUE;
 
@@ -569,9 +566,9 @@ static void
 on_kb_show_panel (guint key_id)
 {
   GeanyDocument *doc = document_get_current();
-  if(DOC_VALID(doc) && doc->has_tags){
-  create_panel();
-  gtk_widget_show (plugin_data.panel);
+  if(DOC_VALID(doc) && doc->tm_file){
+    create_panel();
+    gtk_widget_show (plugin_data.panel);
   }
 }
 
