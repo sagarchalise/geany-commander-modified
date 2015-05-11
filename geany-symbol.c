@@ -65,7 +65,7 @@ PLUGIN_SET_INFO ("Symbol Browser", "Provides a panel for quick access to tags an
 /* Plugin */
 
 enum {
-  KB_SHOW_BROWSER,
+  KB_SHOW_PANEL,
   KB_COUNT
 };
 
@@ -194,16 +194,32 @@ gboolean get_score(const gchar *key, const gchar *name){
     g_free (needle);
     return score;
 }
-static void jump_to_symbol(gchar *name, gint line, gboolean mark_all){
+void indicate_or_go_to_pos(GeanyEditor *editor, gchar *name, gint line, gboolean indicate){
+    gint pos;
+    struct Sci_TextToFind ttf;
+    ttf.chrg.cpMin = sci_get_position_from_line(editor->sci, line-1);
+    ttf.chrg.cpMax = sci_get_line_end_position(editor->sci, line);
+    ttf.lpstrText = name;
+    pos = sci_find_text(editor->sci, SCFIND_MATCHCASE | SCFIND_WHOLEWORD, &ttf);
+    //ui_set_statusbar(TRUE, "%s pos: [%d] ttf: [%lu],[%lu],[%lu],[%lu]", ttf.lpstrText, pos, ttf.chrg.cpMin, ttf.chrg.cpMax, ttf.chrgText.cpMin, ttf.chrgText.cpMax);
+    if(pos != -1){
+	if(indicate){
+	    editor_indicator_set_on_range(editor, GEANY_INDICATOR_SEARCH, ttf.chrgText.cpMin, ttf.chrgText.cpMax);
+	}
+	else{
+	    editor_goto_pos(editor, pos, FALSE);
+	}
+    }
+}
+
+static void jump_to_symbol(gchar *name, gint line){
     GeanyDocument *doc = document_get_current();
     editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
     keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
     if(!sci_is_marker_set_at_line(doc->editor->sci, line-1, 0))
 	sci_set_marker_at_line(doc->editor->sci, line-1, 0);
     sci_goto_line(doc->editor->sci, line-1, TRUE);
-    if (mark_all)
-	keybindings_send_command(GEANY_KEY_GROUP_SEARCH, GEANY_KEYS_SEARCH_MARKALL);
-        //search_mark_all(doc, name, SCFIND_MATCHCASE | SCFIND_WHOLEWORD);
+    indicate_or_go_to_pos(doc->editor, name, line, TRUE);
 }
 static void
 tree_view_set_cursor_from_iter (GtkTreeView *view,
@@ -218,7 +234,7 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
     gulong line;
         gtk_tree_model_get(model, iter, COL_NAME, &name, -1);
         gtk_tree_model_get(model, iter, COL_LINE, &line, -1);
-        jump_to_symbol(name, (gint)line, TRUE);
+        jump_to_symbol(name, (gint)line);
         g_free(name);
   gtk_tree_path_free (path);
 }
@@ -335,9 +351,11 @@ tree_view_activate_focused_row (GtkTreeView *view)
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   GtkTreeIter   iter;
   GeanyDocument *doc = document_get_current();
+  gchar *name;
     gulong line;
   gtk_tree_view_get_cursor (view, &path, &column);
   gtk_tree_model_get_iter (model, &iter, path);
+ gtk_tree_model_get(model, &iter, COL_NAME, &name, -1);
   gtk_tree_model_get(model, &iter, COL_LINE, &line, -1);
   editor_indicator_clear(doc->editor, GEANY_INDICATOR_SEARCH);
   keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
@@ -346,7 +364,8 @@ tree_view_activate_focused_row (GtkTreeView *view)
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
   }
-  sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);
+  indicate_or_go_to_pos(doc->editor, name, line, FALSE);
+  //sci_set_current_position(doc->editor->sci, sci_get_position_from_line(doc->editor->sci, (gint)line-1), TRUE);
 }
 static void
 on_entry_activate (GtkEntry  *entry,
@@ -550,7 +569,7 @@ static void
 on_kb_show_panel (guint key_id)
 {
   GeanyDocument *doc = document_get_current();
-  if(DOC_VALID(doc) && ((DOC_FILENAME(doc) != GEANY_STRING_UNTITLED)  && doc->has_tags)){
+  if(DOC_VALID(doc) && doc->has_tags){
   create_panel();
   gtk_widget_show (plugin_data.panel);
   }
@@ -562,7 +581,7 @@ plugin_init (GeanyData *data)
   GeanyKeyGroup *group;
 
   group = plugin_set_key_group (geany_plugin, "Jump Symbols", KB_COUNT, NULL);
-  keybindings_set_item (group, KB_SHOW_BROWSER, on_kb_show_panel,
+  keybindings_set_item (group, KB_SHOW_PANEL, on_kb_show_panel,
                         0, 0, "show_panel", _("Show Symbol List"), NULL);
 }
 
