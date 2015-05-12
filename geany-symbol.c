@@ -160,6 +160,7 @@ void indicate_or_go_to_pos(GeanyEditor *editor, gchar *name, gint line, gboolean
     ttf.chrg.cpMax = sci_get_line_end_position(editor->sci, line);
     ttf.lpstrText = name;
     pos = sci_find_text(editor->sci, SCFIND_MATCHCASE | SCFIND_WHOLEWORD, &ttf);
+    //sci_set_current_position(editor->sci, pos, TRUE);
     //ui_set_statusbar(TRUE, "%s pos: [%d] ttf: [%lu],[%lu],[%lu],[%lu]", ttf.lpstrText, pos, ttf.chrg.cpMin, ttf.chrg.cpMax, ttf.chrgText.cpMin, ttf.chrgText.cpMax);
     if(pos != -1){
 	if(indicate){
@@ -340,23 +341,27 @@ on_panel_key_press_event (GtkWidget    *widget,
   switch (event->keyval) {
     case GDK_KEY_Escape:
         editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
-	keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
+        keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
+        keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
         gtk_widget_hide(widget);
       return TRUE;
 
     case GDK_KEY_Tab:
-      /* avoid leaving the entry */
-      return TRUE;
+        keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
+        /* avoid leaving the entry */
+        return TRUE;
 
     case GDK_KEY_Return:
     case GDK_KEY_KP_Enter:
     case GDK_KEY_ISO_Enter:
+       keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
       tree_view_activate_focused_row (GTK_TREE_VIEW (plugin_data.view));
       gtk_widget_hide(widget);
       return TRUE;
 
     case GDK_KEY_Page_Up:
     case GDK_KEY_Page_Down:
+       keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
       tree_view_move_focus (GTK_TREE_VIEW (plugin_data.view),
                             GTK_MOVEMENT_DISPLAY_LINES,
                             event->keyval == GDK_KEY_Page_Up ? -1 : 1);
@@ -364,6 +369,7 @@ on_panel_key_press_event (GtkWidget    *widget,
 
     case GDK_KEY_Up:
     case GDK_KEY_Down: {
+       keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
       tree_view_move_focus (GTK_TREE_VIEW (plugin_data.view),
                             GTK_MOVEMENT_DISPLAY_LINES,
                             event->keyval == GDK_KEY_Up ? -1 : 1);
