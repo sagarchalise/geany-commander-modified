@@ -36,8 +36,6 @@ PLUGIN_SET_INFO ("Symbol Browser", "Provides a panel for quick access to tags an
 /* GTK compatibility functions/macros */
 
 #if ! GTK_CHECK_VERSION (2, 18, 0)
-# define gtk_widget_get_visible(w) \
-  (GTK_WIDGET_VISIBLE (w))
 # define gtk_widget_set_can_focus(w, v)               \
   G_STMT_START {                                      \
     GtkWidget *widget = (w);                          \
@@ -141,45 +139,6 @@ static GdkPixbuf *get_tag_icon(const gchar *icon_name)
 	}
 	return gtk_icon_theme_load_icon(icon_theme, icon_name, x, 0, NULL);
 }
-
-// void gt_tag_print(TMTag *tag, FILE *fp)
-// {
-	// const char *type;
-	// if (!tag || !fp)
-		// return;
-	// if (tm_tag_file_t == tag->type)
-	// {
-		// fprintf(fp, "%s\n", tag->name);
-		// return;
-	// }
-	// type = tm_tag_type_name(tag);
-	// if (type)
-		// fprintf(fp, "Type: %s\n", type);
-	// if (tag->var_type)
-		// fprintf(fp, "Var Type: %s\n", tag->var_type);
-	// if (tag->scope)
-		// fprintf(fp, "Scope: %s\n", tag->scope);
-	// fprintf(fp, "Name: %s\n", tag->name);
-	// if (tag->arglist)
-		// fprintf(fp, "Arglist: %s", tag->arglist);
-	// if (tag->inheritance)
-		// fprintf(fp, "Inheritance : %s\n", tag->inheritance);
-	// if ((tag->file) && (tag->line > 0))
-		// fprintf(fp, "Line: %ld", tag->line);
-	// fprintf(fp, "\n");
-// }
-// void gt_tags_array_print(GPtrArray *tags, FILE *fp)
-// {
-	// guint i;
-	// TMTag *tag;
-	// if (!(tags && (tags->len > 0) && fp))
-		// return;
-	// for (i = 0; i < tags->len; ++i)
-	// {
-		// tag = TM_TAG(tags->pdata[i]);
-		// gt_tag_print(tag, fp);
-	// }
-// }
 gboolean get_score(const gchar *key, const gchar *name){
     gchar  *haystack  = g_utf8_casefold (name, -1);
     gchar  *needle   = g_utf8_casefold (key, -1);
