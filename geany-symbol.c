@@ -342,12 +342,10 @@ on_panel_key_press_event (GtkWidget    *widget,
     case GDK_KEY_Escape:
         editor_indicator_clear(old_doc->editor, GEANY_INDICATOR_SEARCH);
         keybindings_send_command(GEANY_KEY_GROUP_DOCUMENT, GEANY_KEYS_DOCUMENT_REMOVE_MARKERS);
-        keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
         gtk_widget_hide(widget);
       return TRUE;
 
     case GDK_KEY_Tab:
-        keybindings_send_command(GEANY_KEY_GROUP_FOCUS, GEANY_KEYS_FOCUS_EDITOR);
         /* avoid leaving the entry */
         return TRUE;
 
