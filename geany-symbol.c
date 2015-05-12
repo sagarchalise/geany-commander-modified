@@ -22,7 +22,7 @@
 
 #include <geanyplugin.h>
 #include <gdk/gdkkeysyms.h>
-#include <tagmanager/tm_tagmanager.h>
+#include <tagmanager/tm_tag.h>
 
 
 GeanyPlugin      *geany_plugin;
