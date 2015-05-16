@@ -529,7 +529,7 @@ static void
 on_kb_show_panel (guint key_id)
 {
   GeanyDocument *doc = document_get_current();
-  if(DOC_VALID(doc) && doc->tm_file){
+  if(DOC_VALID(doc) && doc->tm_file && doc->tm_file->tags_array->len > 0){
     create_panel();
     gtk_widget_show (plugin_data.panel);
   }
