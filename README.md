@@ -7,7 +7,7 @@ Alternative symbol browser for geany.
 
 * Keybinding to open window
 * traversing jumps to symbols
-* seacrh works on 2 or more characters only
+* search works on 2 or more characters only
 
 The code base is mostly  **Commander** plugin available on geany-plugins.
 
