@@ -6,9 +6,8 @@ Alternative symbol browser for geany.
 ***Features***
 
 * Keybinding to open window
-* Filter on type
-* '@' and '#' to filter classes and variables
 * traversing jumps to symbols
+* seacrh works on 2 or more characters only
 
 The code base is mostly  **Commander** plugin available on geany-plugins.
 

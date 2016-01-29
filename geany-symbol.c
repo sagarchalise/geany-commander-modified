@@ -226,23 +226,7 @@ visible_func (GtkTreeModel *model,
   const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
   key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
   gboolean visible = TRUE;
-  if (g_str_has_prefix (key, "@")) {
-        key += 1;
-        if(tag_type == tm_tag_class_t || tag_type == tm_tag_function_t || tag_type == tm_tag_method_t || tag_type == tm_tag_macro_with_arg_t || tag_type == tm_tag_prototype_t){
-              visible = get_score(key, tag_name);
-          }
-        else{
-         visible = FALSE;
-        }
-    } else if (g_str_has_prefix (key, "#")) {
-        key += 1;
-        if(tag_type == tm_tag_variable_t || tag_type == tm_tag_externvar_t || tag_type == tm_tag_member_t || tag_type == tm_tag_field_t || tag_type == tm_tag_macro_t){
-              visible = get_score(key, tag_name);
-          }
-          else{
-            visible = FALSE;
-        }
-    }else if(key_length > 1){
+  if(key_length > 1){
         visible = get_score(key, tag_name);
     }
   g_free(tag_name);
