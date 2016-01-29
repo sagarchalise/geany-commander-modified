@@ -16,23 +16,37 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
 #include <gtk/gtk.h>
-#include <string.h>
 #include <glib.h>
  */
+#ifdef HAVE_CONFIG_H
+	#include "config.h"
+#endif
 
+#define _GNU_SOURCE
+// #include <string.h>
 #include <geanyplugin.h>
 #include <gdk/gdkkeysyms.h>
 #include <tagmanager/tm_tag.h>
 
+#ifdef HAVE_LOCALE_H
+	#include <locale.h>
+#endif
 
 GeanyPlugin      *geany_plugin;
 GeanyData        *geany_data;
 
 PLUGIN_VERSION_CHECK(211)
 
-PLUGIN_SET_INFO ("Symbol Browser", "Provides a panel for quick access to tags and symbols in current document.", "0.1", "Sagar Chalise <chalisesagar@gmail.com>")
+//PLUGIN_SET_INFO ("Symbol Browser", "Provides a panel for quick access to tags and symbols in current document.", "0.1", "Sagar Chalise <chalisesagar@gmail.com>")
 
-
+PLUGIN_SET_TRANSLATABLE_INFO(LOCALEDIR,
+	GETTEXT_PACKAGE,
+	_("Symbol Browser"),
+	_("Provides a panel for quick access to tags and symbols in current document."),
+	"0.1",
+	"Sagar Chalise <chalisesagar@gmail.com>\n\
+    https://github.com/sagarchalise/geany-symbol"
+);
 /* GTK compatibility functions/macros */
 
 #if ! GTK_CHECK_VERSION (2, 18, 0)
@@ -148,7 +162,7 @@ gboolean get_score(const gchar *key, const gchar *name){
         *needle == '\0' || *haystack == '\0') {
         return score;
     }
-    score = strcasestr(haystack, needle) >= 1? TRUE : FALSE;
+    score = (strcasestr(haystack, needle) != NULL)?TRUE:FALSE;
     g_free (haystack);
     g_free (needle);
     return score;
@@ -205,9 +219,12 @@ visible_func (GtkTreeModel *model,
 {
   gchar *tag_name;
   gint tag_type;
+  //atleast 2 chars  should  be  available for comparison
+  guint16 key_length;
   gtk_tree_model_get (model, iter, COL_NAME, &tag_name, -1);
   gtk_tree_model_get (model, iter, COL_TYPE, &tag_type, -1);
   const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+  key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
   gboolean visible = TRUE;
   if (g_str_has_prefix (key, "@")) {
         key += 1;
@@ -225,7 +242,7 @@ visible_func (GtkTreeModel *model,
           else{
             visible = FALSE;
         }
-    }else{
+    }else if(key_length > 1){
         visible = get_score(key, tag_name);
     }
   g_free(tag_name);
@@ -540,7 +557,7 @@ plugin_init (GeanyData *data)
 {
   GeanyKeyGroup *group;
 
-  group = plugin_set_key_group (geany_plugin, "Jump Symbols", KB_COUNT, NULL);
+  group = plugin_set_key_group (geany_plugin, _("Jump Symbols"), KB_COUNT, NULL);
   keybindings_set_item (group, KB_SHOW_PANEL, on_kb_show_panel,
                         0, 0, "show_panel", _("Show Symbol List"), NULL);
 }

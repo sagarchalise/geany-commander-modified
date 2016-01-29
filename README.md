@@ -13,7 +13,7 @@ Alternative symbol browser for geany.
 The code base is mostly  **Commander** plugin available on geany-plugins.
 
 
-$ gcc -c geany-symbol.c -fPIC `pkg-config --cflags geany`
+$ gcc -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"geany-symbol\" -c geany-symbol.c -fPIC `pkg-config --cflags geany`
 
 $ gcc geany-symbol.o -o geany-symbol.so -shared `pkg-config --libs geany`
 
