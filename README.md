@@ -1,20 +1,16 @@
-geany-symbol
-============
+geany-commander-modified
+======================
 
-Alternative symbol browser for geany.
+Modification to **geany-commander** to browser symbols and jump to open documents only
 
-***Features***
-
-* Keybinding to open window
-* traversing jumps to symbols
-* search works on 2 or more characters only
-
-The code base is mostly  **Commander** plugin available on geany-plugins.
+####TODO
+ - Jump to symbols on other doc with @ and #
+ - Project file browsing and symbol jump functionality
 
 
-$ gcc -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"geany-symbol\" -c geany-symbol.c -fPIC `pkg-config --cflags geany`
+$ gcc -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"commander-modified\" -c commander-modified.c -fPIC `pkg-config --cflags geany`
 
-$ gcc geany-symbol.o -o geany-symbol.so -shared `pkg-config --libs geany`
+$ gcc commander-modified.o -o commander-modified.so -shared `pkg-config --libs geany`
 
 
 **Copy geany-symbol.so to plugin path**
