@@ -43,7 +43,7 @@ PLUGIN_VERSION_CHECK(205)
 
 PLUGIN_SET_TRANSLATABLE_INFO (
   LOCALEDIR, GETTEXT_PACKAGE,
-  _("Commander Enhanced"),
+  _("Commander Modified"),
   _("Provides a command panel for quick access to open docs and tags on docs"),
   "0.1",
   "Colomban Wendling <ban@herbesfolles.org>\nSagar Chalise<chalisesagar@gmail.com>"
@@ -353,6 +353,34 @@ path_basename (const gchar *path)
   }
 }
 
+void navigate_to_doc(GeanyDocument *new_doc, gchar  *search_name){
+        gint count = 1;
+    GeanyDocument *old_doc = document_get_current();
+    if(search_name != NULL){
+
+    if (DOC_VALID(new_doc) && new_doc->tm_file && new_doc->tm_file->tags_array->len > 0){
+        TMTag *tag;
+        search_name += 1;
+        gint search_len = strlen(search_name);
+        if(search_len > 3){
+        for (gint i=0; i < new_doc->tm_file->tags_array->len; ++i){
+            tag = TM_TAG(new_doc->tm_file->tags_array->pdata[i]);
+            if(g_str_has_prefix(tag->name, search_name)){
+                count = (gint)tag->line;
+                break;
+            }
+        }
+        }
+    }
+    }
+        navqueue_goto_line(old_doc, new_doc, count);
+        gtk_widget_hide(plugin_data.panel);
+
+
+    //g_free(search_name);
+}
+
+
 // static gint
 // key_score (const gchar *key_,
            // const gchar *text_, gint col_type)
@@ -372,27 +400,6 @@ path_basename (const gchar *path)
 
   // return score;
 // }
-
-static const gchar *
-get_key (gint *type_)
-{
-  gint          type  = COL_TYPE_ANY;
-  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-
-  if (g_str_has_prefix (key, "@")) {
-    key += 1;
-    type = COL_TYPE_DOC;
-  } else if (g_str_has_prefix (key, "#")) {
-    key += 1;
-    type = COL_TYPE_TAG;
-  }
-
-  if (type_) {
-    *type_ = type;
-  }
-
-  return key;
-}
 
 static void
 tree_view_set_cursor_from_iter (GtkTreeView *view,
@@ -499,6 +506,13 @@ tree_view_activate_focused_row (GtkTreeView *view)
         indicate_or_go_to_pos(doc->editor, tag->name, (gint)tag->line, FALSE);
         //tm_tag_unref(tag);
     }
+    else if(type == COL_TYPE_DOC){
+             GeanyDocument *new_doc;
+
+             gtk_tree_model_get (model, &iter, COL_DOCUMENT, &new_doc, -1);
+            navigate_to_doc(new_doc, NULL);
+
+    }
 }
 
 static void
@@ -591,7 +605,7 @@ fill_store (GtkListStore *store)
                                        COL_NAME, basename,
                                        COL_TYPE, COL_TYPE_DOC,
                                        COL_DOCUMENT, documents[i],
-                                       COL_TAGS, documents[i]->tm_file->tags_array,
+                                       //COL_TAGS, NULL,
                                        -1);
     g_free (basename);
     g_free (label);
@@ -603,44 +617,54 @@ fill_store (GtkListStore *store)
       // store_project_files(store, project);
   // }
 }
-
 static gboolean
 visible_func (GtkTreeModel *model,
               GtkTreeIter  *iter,
               gpointer      data)
 {
+    //return FALSE;
   //atleast 2 chars  should  be  available for comparison
-  guint16 key_length;
-  gchar *name;
-  gint          type;
-  const gchar  *key = get_key (&type);
-  gtk_tree_model_get (model, iter, COL_NAME, &name, -1);
-  key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
-  gboolean visible = TRUE;
-
-  if(key_length > 1){
-        visible = get_score(key, name);
-    // if (type == COL_TYPE_DOC){
-        // gchar *search_name;
-      // GPtrArray *tags_array;
-      // GeanyDocument *new_doc;
-        // //TMTag *tag;
-        // guint count;
-      // gtk_tree_model_get (model, iter, COL_TAGS, &tags_array, -1);
-      // search_name = strchr(key, '#');
-      // if (search_name != NULL){
-          // search_name += 1;
-          // tm_tags_find(tags_array, search_name, TRUE, &count);
-      // }
-      // GeanyDocument *old_doc = document_get_current();
-      // if (count){
-          // gtk_tree_model_get (model, iter, COL_DOCUMENT, &new_doc, -1);
-          // navqueue_goto_line(old_doc, new_doc, count);
-      // }
-    //}
-  }
-  g_free(name);
-  return visible;
+    // gchar *search_tag;
+    gchar *name;
+    gint dtype;
+    guint16 key_length;
+    gint type  = COL_TYPE_ANY;
+    gtk_tree_model_get (model, iter, COL_NAME, &name, COL_TYPE, &dtype, -1);
+    const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+    // printf("%s", &name);
+  //gchar *key_dup;
+     key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
+     gboolean visible;
+     if (g_str_has_prefix (key, "@")) {
+         key += 1;
+         type = COL_TYPE_DOC;
+         // search_tag = strstr(key, "#");
+         // if(key_length > 5 && search_tag != NULL){
+             // visible = TRUE;
+             // GeanyDocument *new_doc;
+             // gtk_tree_model_get (model, iter, COL_DOCUMENT, &new_doc, -1);
+            // navigate_to_doc(new_doc, search_tag);
+         // }
+         // }
+     } else if (g_str_has_prefix (key, "#")) {
+        key += 1;
+         type = COL_TYPE_TAG;
+     }
+    if(dtype == type){
+        visible = TRUE;
+    }
+    else if(type == COL_TYPE_ANY){
+         visible = TRUE;
+    }
+    else{
+        visible = FALSE;
+    }
+    if (visible){
+        visible = (key_length > 1)?get_score(key, name):visible;
+    }
+    g_free(name);
+    //g_free(search_tag);
+    return visible;
 }
 
 // static gint
@@ -888,10 +912,10 @@ create_panel (void)
                                           G_TYPE_POINTER);
     fill_store(plugin_data.store);
   plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
-  GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.filter));
-  gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (sort),
-                                        COL_TYPE,
-                                        GTK_SORT_ASCENDING);
+  // GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.filter));
+  // gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (sort),
+                                        // COL_TYPE,
+                                        // GTK_SORT_ASCENDING);
 
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
@@ -934,9 +958,9 @@ plugin_init (GeanyData *data)
 {
   GeanyKeyGroup *group;
 
-  group = plugin_set_key_group (geany_plugin, "commander-enhanced", KB_COUNT, NULL);
+  group = plugin_set_key_group (geany_plugin, "commander-modified", KB_COUNT, NULL);
   keybindings_set_item (group, KB_SHOW_PANEL, on_kb_show_panel,
-                        0, 0, "show_panel", _("Show Command Panel"), NULL);
+                        0, 0, "show_panel", _("Show panel for tags and documents."), NULL);
 
   /* delay for other plugins to have a chance to load before, so we will
    * include their items */
