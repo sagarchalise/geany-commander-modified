@@ -13,4 +13,4 @@ $ gcc -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"commander-modified\" -c commander-mod
 $ gcc commander-modified.o -o commander-modified.so -shared `pkg-config --libs geany`
 
 
-**Copy geany-symbol.so to plugin path**
+**Copy commander-modified.so to plugin path**
