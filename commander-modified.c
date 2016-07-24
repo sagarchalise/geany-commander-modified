@@ -444,7 +444,7 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
 	{
         tag = TM_TAG(doc->tm_file->tags_array->pdata[i]);
         taglabel = get_tag_label(tag->type);
-         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> <big>%s</big>\n",
+         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s",
                                              taglabel,
                                              get_symbol_name(doc, tag));
         gtk_list_store_insert_with_values (store, NULL, -1,
@@ -488,8 +488,8 @@ create_panel (void)
 
   plugin_data.panel = g_object_new (GTK_TYPE_WINDOW,
                                     "decorated", FALSE,
-                                    "default-width", 500,
-                                    "default-height", 200,
+                                    "default-width", 250,
+                                    "default-height", 100,
                                     "transient-for", geany_data->main_widgets->window,
                                     "window-position", GTK_WIN_POS_CENTER_ON_PARENT,
                                     "type-hint", GDK_WINDOW_TYPE_HINT_DIALOG,
