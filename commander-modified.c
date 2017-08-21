@@ -355,79 +355,29 @@ on_panel_key_press_event (GtkWidget    *widget,
 
 static const gchar *get_tag_label(gint tag_type)
 {
-	gchar *tt_name;
-	static GString *buffer = NULL;	/* buffer will be small so we can keep it for reuse */
-	switch(tag_type){
-        case tm_tag_undef_t:
-            tt_name = "undefined";
-            break;
-        case tm_tag_class_t:
-            tt_name = "class";
-            break;
-        case tm_tag_enum_t:
-            tt_name = "enum";
-            break;
-        case  tm_tag_enumerator_t:
-            tt_name = "enumerator";
-            break;
-        case tm_tag_field_t:
-            tt_name = "field";
-            break;
-        case tm_tag_function_t:
-            tt_name = "function";
-            break;
-        case tm_tag_interface_t:
-            tt_name = "interface";
-            break;
-        case tm_tag_member_t:
-            tt_name = "member";
-            break;
-        case tm_tag_method_t:
-            tt_name = "method";
-            break;
-        case tm_tag_namespace_t:
-            tt_name = "namespace";
-            break;
-        case tm_tag_package_t:
-            tt_name = "package";
-            break;
-        case tm_tag_prototype_t:
-            tt_name = "prototype";
-            break;
-        case tm_tag_struct_t:
-            tt_name = "struct";
-            break;
-        case tm_tag_typedef_t:
-            tt_name = "typedef";
-            break;
-        case tm_tag_union_t:
-            tt_name = "union";
-            break;
-        case tm_tag_variable_t:
-            tt_name = "variable";
-            break;
-        case tm_tag_externvar_t:
-            tt_name = "externvar";
-            break;
-        case tm_tag_macro_t:
-            tt_name = "macro";
-            break;
-        case tm_tag_macro_with_arg_t:
-            tt_name = "macro_w_args";
-            break;
-        case tm_tag_file_t:
-            tt_name = "file";
-            break;
-        default:
-            tt_name = "other";
-    }
-
-	if (! buffer)
-		buffer = g_string_new(NULL);
-	else
-		g_string_truncate(buffer, 0);
-    g_string_append(buffer, tt_name);
-	return buffer->str;
+  switch(tag_type)
+	{
+		case tm_tag_class_t: return "class";
+		case tm_tag_enum_t: return "enum";
+		case tm_tag_enumerator_t: return "enumval";
+		case tm_tag_field_t: return "field";
+		case tm_tag_function_t: return "function";
+		case tm_tag_interface_t: return "interface";
+		case tm_tag_member_t: return "member";
+		case tm_tag_method_t: return "method";
+		case tm_tag_namespace_t: return "namespace";
+		case tm_tag_package_t: return "package";
+		case tm_tag_prototype_t: return "prototype";
+		case tm_tag_struct_t: return "struct";
+		case tm_tag_typedef_t: return "typedef";
+		case tm_tag_union_t: return "union";
+		case tm_tag_variable_t: return "variable";
+		case tm_tag_externvar_t: return "extern";
+		case tm_tag_macro_t: return "define";
+		case tm_tag_macro_with_arg_t: return "macro";
+		default: return "other";
+	}
+	return NULL;
 }
 
 
@@ -435,7 +385,7 @@ static void
 store_populate_tag_items_for_current_doc (GtkListStore  *store)
 {
     GeanyDocument *doc = document_get_current();
-
+    
     if(DOC_VALID(doc) && doc->tm_file && doc->tm_file->tags_array->len > 0){
     const gchar *taglabel;
     gint i;
