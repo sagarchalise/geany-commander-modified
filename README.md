@@ -17,4 +17,4 @@ $ gcc -DLOCALEDIR=\"\" -DGETTEXT_PACKAGE=\"geany-goto\" -c commander-modified.c 
 $ gcc commander-modified.o -o goto.so -shared `pkg-config --libs geany`
 
 
-**Copy commander-modified.so to plugin path**
+**Copy goto.so to plugin path**
