@@ -394,9 +394,10 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
 	{
         tag = TM_TAG(doc->tm_file->tags_array->pdata[i]);
         taglabel = get_tag_label(tag->type);
-         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s",
+         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s\n<small>%s</small>",
                                              taglabel,
-                                             get_symbol_name(doc, tag));
+                                             get_symbol_name(doc, tag),
+                                             DOC_FILENAME(doc));
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
                                        COL_LINE, tag->line,
