@@ -34,6 +34,7 @@
 
 GeanyPlugin      *geany_plugin;
 GeanyData        *geany_data;
+// gboolean cur_doc_tag = TRUE;
 
 PLUGIN_VERSION_CHECK(211)
 
@@ -95,61 +96,20 @@ struct {
 enum {
   COL_LABEL,
   COL_LINE,
+  // COL_CUR_FILE,
   COL_TAG,
   COL_COUNT
 };
-
-static const gchar *get_symbol_name(GeanyDocument *doc, const TMTag *tag)
-{
-	gchar *utf8_name;
-	const gchar *scope = tag->scope;
-	static GString *buffer = NULL;	/* buffer will be small so we can keep it for reuse */
-	gboolean doc_is_utf8 = FALSE;
-
-	/* encodings_convert_to_utf8_from_charset() fails with charset "None", so skip conversion
-	 * for None at this point completely */
-	if (utils_str_equal(doc->encoding, "UTF-8") ||
-		utils_str_equal(doc->encoding, "None"))
-		doc_is_utf8 = TRUE;
-	else /* normally the tags will always be in UTF-8 since we parse from our buffer, but a
-		  * plugin might have called tm_source_file_update(), so check to be sure */
-		doc_is_utf8 = g_utf8_validate(tag->name, -1, NULL);
-
-	if (! doc_is_utf8)
-		utf8_name = encodings_convert_to_utf8_from_charset(tag->name,
-			-1, doc->encoding, TRUE);
-	else
-		utf8_name = tag->name;
-
-	if (utf8_name == NULL)
-		return NULL;
-
-	if (! buffer)
-		buffer = g_string_new(NULL);
-	else
-		g_string_truncate(buffer, 0);
-
-	g_string_append(buffer, utf8_name);
-
-	if (! doc_is_utf8)
-		g_free(utf8_name);
-
-	g_string_append_printf(buffer, " [%lu]", tag->line);
-
-	return buffer->str;
-}
 gboolean get_score(const gchar *key, const gchar *name){
-    gchar  *haystack  = g_utf8_casefold (name, -1);
-    gchar  *needle   = g_utf8_casefold (key, -1);
-    gboolean score = TRUE;
+    gboolean score = FALSE;
 
-    if (key == NULL || haystack == NULL ||
-        *needle == '\0' || *haystack == '\0') {
+    if (key == NULL || name == NULL) {
         return score;
     }
-    score = (strcasestr(haystack, needle) != NULL)?TRUE:FALSE;
-    g_free (haystack);
-    g_free (needle);
+    score = utils_str_equal(name, key);
+    if(!score){
+      score = (strstr(name, key) != NULL)?TRUE:FALSE;
+    }
     return score;
 }
 void indicate_or_go_to_pos(GeanyEditor *editor, gchar *name, gint line, gboolean indicate){
@@ -188,8 +148,13 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   TMTag *tag;
   gtk_tree_model_get(model, iter, COL_TAG, &tag, -1);
-  jump_to_symbol(tag->name, (gint)tag->line);
-  gtk_tree_path_free (path);
+  GeanyDocument *cur_doc = document_get_current();
+  if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
+    if(utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc))){
+      jump_to_symbol(tag->name, (gint)tag->line);
+      gtk_tree_path_free (path);
+    }
+  }
 }
 static gboolean
 visible_func (GtkTreeModel *model,
@@ -199,13 +164,23 @@ visible_func (GtkTreeModel *model,
   TMTag *tag;
   //atleast 2 chars  should  be  available for comparison
   guint16 key_length;
+  GeanyDocument *cur_doc = document_get_current();
   gtk_tree_model_get (model, iter, COL_TAG, &tag, -1);
   const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
   key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
   gboolean visible = TRUE;
-  if(key_length > 1){
-        visible = get_score(key, tag->name);
-    }
+  gint check = 1;
+  if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
+      visible = utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc));
+  }
+  if (g_str_has_prefix (key, "@")) {
+    key += 1;
+    check = 2;
+    visible = !visible;
+  }
+  if(key_length > check && visible){
+    visible = get_score(key, tag->name);
+  }
   return visible;
 }
 
@@ -219,7 +194,7 @@ on_entry_text_notify (GObject    *object,
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-    gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
+   gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -298,13 +273,23 @@ tree_view_activate_focused_row (GtkTreeView *view)
     gtk_tree_view_row_activated (view, path, column);
     gtk_tree_path_free (path);
   }
-  indicate_or_go_to_pos(doc->editor, tag->name, tag->line, FALSE);
+  if(utils_str_equal(tag->file->file_name, DOC_FILENAME(doc))){
+    indicate_or_go_to_pos(doc->editor, tag->name, tag->line, FALSE);
+  }
+  else{
+    GeanyDocument *new_doc = document_open_file(tag->file->file_name, FALSE, NULL, NULL);
+    indicate_or_go_to_pos(new_doc->editor, tag->name, tag->line, FALSE);
+  }
 }
 static void
 on_entry_activate (GtkEntry  *entry,
                    gpointer   dummy)
 {
-  tree_view_activate_focused_row (GTK_TREE_VIEW (plugin_data.view));
+  GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
+  // GtkTreeModel *model = gtk_tree_view_get_model (view);
+  // gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
+   // gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
+  tree_view_activate_focused_row (view);
 }
 
 static gboolean
@@ -372,7 +357,6 @@ static const gchar *get_tag_label(gint tag_type)
 		case tm_tag_typedef_t: return "typedef";
 		case tm_tag_union_t: return "union";
 		case tm_tag_variable_t: return "variable";
-		case tm_tag_externvar_t: return "extern";
 		case tm_tag_macro_t: return "define";
 		case tm_tag_macro_with_arg_t: return "macro";
 		default: return "other";
@@ -380,30 +364,86 @@ static const gchar *get_tag_label(gint tag_type)
 	return NULL;
 }
 
+/* utf8 */
+gchar *get_project_rel_path(const gchar *utf8_parent, const gchar *utf8_descendant)
+{
+	GFile *gf_parent, *gf_descendant;
+	gchar *locale_parent, *locale_descendant;
+	gchar *locale_ret, *utf8_ret;
+  GString *proj = g_string_new("Project -> ");
+
+	locale_parent = utils_get_locale_from_utf8(utf8_parent);
+	locale_descendant = utils_get_locale_from_utf8(utf8_descendant);
+	gf_parent = g_file_new_for_path(locale_parent);
+	gf_descendant = g_file_new_for_path(locale_descendant);
+
+	locale_ret = g_file_get_relative_path(gf_parent, gf_descendant);
+	g_string_append(proj, locale_ret);
+  utf8_ret = utils_get_utf8_from_locale(proj->str);
+
+	g_object_unref(gf_parent);
+	g_object_unref(gf_descendant);
+	g_free(locale_parent);
+	g_free(locale_descendant);
+	g_free(locale_ret);
+  g_string_free(proj, TRUE);
+
+	return utf8_ret;
+}
 
 static void
 store_populate_tag_items_for_current_doc (GtkListStore  *store)
 {
-    GeanyDocument *doc = document_get_current();
-    
-    if(DOC_VALID(doc) && doc->tm_file && doc->tm_file->tags_array->len > 0){
+    GPtrArray *tags_array = geany_data->app->tm_workspace->tags_array;
+    GeanyProject *project = geany_data->app->project;
+    gchar *proj_path;
+    if(project != NULL){
+      proj_path = project->base_path;
+    }
+    if(tags_array->len > 0){
+      GeanyDocument *doc = document_get_current();
     const gchar *taglabel;
     gint i;
   TMTag *tag;
-    for (i = 0; i < doc->tm_file->tags_array->len; ++i)
+    for (i = 0; i < tags_array->len; ++i)
 	{
-        tag = TM_TAG(doc->tm_file->tags_array->pdata[i]);
+        tag = TM_TAG(tags_array->pdata[i]);
+        if(!tag->file){
+          continue;
+        }
+        if(tag->type == tm_tag_externvar_t || tag->type == tm_tag_prototype_t)
+        continue;
+        
         taglabel = get_tag_label(tag->type);
-         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s\n<small>%s</small>",
+        if(taglabel == NULL){
+          continue;
+        }
+        GeanyFiletype *ft = filetypes_detect_from_file(tag->file->file_name);
+        switch(ft->id){
+          case GEANY_FILETYPES_CMAKE:
+          case GEANY_FILETYPES_CONF:
+          case GEANY_FILETYPES_CSS:
+          case GEANY_FILETYPES_DIFF:
+          case GEANY_FILETYPES_HTML:
+          case GEANY_FILETYPES_LATEX:
+          case GEANY_FILETYPES_XML:
+          case GEANY_FILETYPES_PO:
+          case GEANY_FILETYPES_YAML:
+            continue;
+        }
+      gchar *tag_path = (proj_path == NULL)?tag->file->short_name:get_project_rel_path(proj_path, tag->file->file_name);
+         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s [%ld]\n<small>%s</small>",
                                              taglabel,
-                                             get_symbol_name(doc, tag),
-                                             DOC_FILENAME(doc));
+                                             tag->name, tag->line,
+                                             tag_path);
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
                                        COL_LINE, tag->line,
+                                       // COL_CUR_FILE, utils_str_equal(tag->file->file_name, DOC_FILENAME(doc)),
                                        COL_TAG, tag,
                                        -1);
         g_free(label);
+        g_free(tag_path);
     }
     }
 }
@@ -418,6 +458,11 @@ on_panel_show (GtkWidget *widget,
                gpointer   dummy)
 {
   gtk_widget_grab_focus (plugin_data.entry);
+  // GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
+  // GtkTreeModel *model = gtk_tree_view_get_model (view);
+  // gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
+    // gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
+  // gtk_tree_model_filter_set_visible_func();
 }
 
 static void
@@ -439,7 +484,7 @@ create_panel (void)
 
   plugin_data.panel = g_object_new (GTK_TYPE_WINDOW,
                                     "decorated", FALSE,
-                                    "default-width", 250,
+                                    "default-width", 300,
                                     "default-height", 100,
                                     "transient-for", geany_data->main_widgets->window,
                                     "window-position", GTK_WIN_POS_CENTER_ON_PARENT,
@@ -473,11 +518,12 @@ create_panel (void)
     plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           G_TYPE_STRING,
                                           G_TYPE_INT,
+                                          // G_TYPE_BOOLEAN,
                                           G_TYPE_POINTER);
     fill_store(plugin_data.store);
   plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
-  GtkTreeModel *sort = gtk_tree_model_filter_get_model(GTK_TREE_MODEL_FILTER(plugin_data.filter));
-  gtk_tree_sortable_set_sort_column_id(GTK_TREE_SORTABLE(sort), COL_LINE, GTK_SORT_ASCENDING);
+  gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(plugin_data.filter), visible_func, NULL, NULL);
+  // Egtk_tree_model_filter_set_visible_column(GTK_TREE_MODEL_FILTER(plugin_data.filter), COL_CUR_FILE);
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
@@ -503,8 +549,9 @@ create_panel (void)
 static void
 on_kb_show_panel (guint key_id)
 {
-  GeanyDocument *doc = document_get_current();
-  if(DOC_VALID(doc) && doc->tm_file && doc->tm_file->tags_array->len > 0){
+  
+  GPtrArray *tags_array = geany_data->app->tm_workspace->tags_array;
+  if(tags_array->len > 0){
     create_panel();
     gtk_widget_show (plugin_data.panel);
   }
