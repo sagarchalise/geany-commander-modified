@@ -88,10 +88,11 @@ struct {
   GtkWidget    *view;
   GtkListStore *store;
   GtkTreeModel *filter;
+  GtkTreeModel *sort;
 } plugin_data = {
   NULL, NULL,
   NULL, NULL,
-  NULL
+  NULL, NULL
 };
 enum {
   COL_LABEL,
@@ -100,15 +101,20 @@ enum {
   COL_TAG,
   COL_COUNT
 };
-gboolean get_score(const gchar *key, const gchar *name){
-    gboolean score = FALSE;
+gint get_score(const gchar *key, const gchar *name){
+    gint score = 0; //no match
 
     if (key == NULL || name == NULL) {
         return score;
     }
-    score = utils_str_equal(name, key);
-    if(!score){
-      score = (strstr(name, key) != NULL)?TRUE:FALSE;
+    if(utils_str_equal(name, key)){
+      score = 1;
+    }
+    else if (g_str_has_prefix(name, key)){
+      score = 2;
+    }
+    else if (strstr(name, key) != NULL){
+      score = 3;
     }
     return score;
 }
@@ -170,6 +176,7 @@ visible_func (GtkTreeModel *model,
   key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
   gboolean visible = TRUE;
   gint check = 1;
+  gint score = -1;
   if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
       visible = utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc));
   }
@@ -179,12 +186,51 @@ visible_func (GtkTreeModel *model,
     visible = !visible;
   }
   if(key_length > check && visible){
-    visible = get_score(key, tag->name);
+    score = get_score(key, tag->name);
   }
-  return visible;
+  return (score == 0)?FALSE:visible;
 }
 
+static gint
+sort_func (GtkTreeModel  *model,
+           GtkTreeIter   *a,
+           GtkTreeIter   *b,
+           gpointer       dummy)
+{
+  gint          scorea = 0;
+  gint          scoreb = 0;
+  TMTag *taga;
+  TMTag *tagb;
+  gtk_tree_model_get (model, a, COL_TAG, &taga, -1);
+  gtk_tree_model_get (model, b, COL_TAG, &tagb, -1);
+  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+  guint key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
+  gint check = 1;
+  if (g_str_has_prefix (key, "@")) {
+    key += 1;
+    check = 2;
+  }
+  if(key_length > check){
+    scorea = get_score(key, taga->name);
+    scoreb = get_score(key, tagb->name);
+    msgwin_status_add("%d %d %s %s", scorea, scoreb, taga->name, tagb->name);
+  }
+  else{
+    gtk_tree_model_get (model, a, COL_LINE, &scorea, -1);
+    gtk_tree_model_get (model, b, COL_LINE, &scoreb, -1);
+  }
+  if(scorea == scoreb){
+      return 0;
+    }
+    if(scorea > scoreb){
+      return 1;
+    }
+    if(scorea < scoreb){
+      return -1;
+    }
 
+}
+ 
 static void
 on_entry_text_notify (GObject    *object,
                       GParamSpec *pspec,
@@ -194,7 +240,7 @@ on_entry_text_notify (GObject    *object,
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-   gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
+  gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (model));
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -286,10 +332,7 @@ on_entry_activate (GtkEntry  *entry,
                    gpointer   dummy)
 {
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
-  // GtkTreeModel *model = gtk_tree_view_get_model (view);
-  // gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-   // gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
-  tree_view_activate_focused_row (view);
+    tree_view_activate_focused_row (view);
 }
 
 static gboolean
@@ -458,11 +501,6 @@ on_panel_show (GtkWidget *widget,
                gpointer   dummy)
 {
   gtk_widget_grab_focus (plugin_data.entry);
-  // GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
-  // GtkTreeModel *model = gtk_tree_view_get_model (view);
-  // gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-    // gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(model), visible_func, NULL, NULL);
-  // gtk_tree_model_filter_set_visible_func();
 }
 
 static void
@@ -521,9 +559,13 @@ create_panel (void)
                                           // G_TYPE_BOOLEAN,
                                           G_TYPE_POINTER);
     fill_store(plugin_data.store);
-  plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.store), NULL);
+  plugin_data.sort = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(plugin_data.store));
+  // gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (plugin_data.sort), COL_LINE, GTK_SORT_ASCENDING);
+    gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
+                                           sort_func, NULL, NULL);
+  plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.sort), NULL);
   gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(plugin_data.filter), visible_func, NULL, NULL);
-  // Egtk_tree_model_filter_set_visible_column(GTK_TREE_MODEL_FILTER(plugin_data.filter), COL_CUR_FILE);
+
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
