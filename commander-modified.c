@@ -96,7 +96,7 @@ struct {
 };
 enum {
   COL_LABEL,
-  COL_LINE,
+  // COL_LINE,
   // COL_CUR_FILE,
   COL_TAG,
   COL_COUNT
@@ -162,6 +162,44 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
     }
   }
 }
+static gint
+sort_func (GtkTreeModel  *model,
+           GtkTreeIter   *a,
+           GtkTreeIter   *b,
+           gpointer       dummy)
+{
+  gint          scorea = 0;
+  gint          scoreb = 0;
+  TMTag *taga;
+  TMTag *tagb;
+  gtk_tree_model_get (model, a, COL_TAG, &taga, -1);
+  gtk_tree_model_get (model, b, COL_TAG, &tagb, -1);
+  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
+  guint key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
+  gint check = 1;
+  if (g_str_has_prefix (key, "@")) {
+    key += 1;
+    check = 2;
+  }
+  if(key_length > check){
+    scorea = get_score(key, taga->name);
+    scoreb = get_score(key, tagb->name);
+  }
+  else{
+    scorea = taga->line;
+    scoreb = tagb->line;
+  }
+  if(scorea == scoreb){
+      return 0;
+    }
+    if(scorea > scoreb){
+      return 1;
+    }
+    if(scorea < scoreb){
+      return -1;
+    }
+
+}
 static gboolean
 visible_func (GtkTreeModel *model,
               GtkTreeIter  *iter,
@@ -190,46 +228,6 @@ visible_func (GtkTreeModel *model,
   }
   return (score == 0)?FALSE:visible;
 }
-
-static gint
-sort_func (GtkTreeModel  *model,
-           GtkTreeIter   *a,
-           GtkTreeIter   *b,
-           gpointer       dummy)
-{
-  gint          scorea = 0;
-  gint          scoreb = 0;
-  TMTag *taga;
-  TMTag *tagb;
-  gtk_tree_model_get (model, a, COL_TAG, &taga, -1);
-  gtk_tree_model_get (model, b, COL_TAG, &tagb, -1);
-  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-  guint key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
-  gint check = 1;
-  if (g_str_has_prefix (key, "@")) {
-    key += 1;
-    check = 2;
-  }
-  if(key_length > check){
-    scorea = get_score(key, taga->name);
-    scoreb = get_score(key, tagb->name);
-    msgwin_status_add("%d %d %s %s", scorea, scoreb, taga->name, tagb->name);
-  }
-  else{
-    gtk_tree_model_get (model, a, COL_LINE, &scorea, -1);
-    gtk_tree_model_get (model, b, COL_LINE, &scoreb, -1);
-  }
-  if(scorea == scoreb){
-      return 0;
-    }
-    if(scorea > scoreb){
-      return 1;
-    }
-    if(scorea < scoreb){
-      return -1;
-    }
-
-}
  
 static void
 on_entry_text_notify (GObject    *object,
@@ -240,7 +238,7 @@ on_entry_text_notify (GObject    *object,
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-  gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (model));
+    gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (plugin_data.sort));
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -481,7 +479,7 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
                                              tag_path);
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
-                                       COL_LINE, tag->line,
+                                       // COL_LINE, tag->line,
                                        // COL_CUR_FILE, utils_str_equal(tag->file->file_name, DOC_FILENAME(doc)),
                                        COL_TAG, tag,
                                        -1);
@@ -555,7 +553,7 @@ create_panel (void)
 
     plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           G_TYPE_STRING,
-                                          G_TYPE_INT,
+                                          // G_TYPE_INT,
                                           // G_TYPE_BOOLEAN,
                                           G_TYPE_POINTER);
     fill_store(plugin_data.store);
