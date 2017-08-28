@@ -96,8 +96,6 @@ struct {
 };
 enum {
   COL_LABEL,
-  // COL_LINE,
-  // COL_CUR_FILE,
   COL_TAG,
   COL_COUNT
 };
@@ -184,7 +182,6 @@ sort_func (GtkTreeModel  *model,
   if(key_length > check){
     scorea = get_score(key, taga->name);
     scoreb = get_score(key, tagb->name);
-    msgwin_status_add("%d %d %s %s", scorea, scoreb, taga->name, tagb->name);
   }
   else{
     scorea = taga->line;
@@ -238,10 +235,10 @@ on_entry_text_notify (GObject    *object,
   GtkTreeIter   iter;
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
-  gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
   gtk_tree_model_sort_reset_default_sort_func(GTK_TREE_MODEL_SORT (plugin_data.sort));
   gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
                                            sort_func, NULL, NULL);
+  gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -483,8 +480,6 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
                                              tag_path);
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
-                                       // COL_LINE, tag->line,
-                                       // COL_CUR_FILE, utils_str_equal(tag->file->file_name, DOC_FILENAME(doc)),
                                        COL_TAG, tag,
                                        -1);
         g_free(label);
@@ -557,12 +552,9 @@ create_panel (void)
 
     plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           G_TYPE_STRING,
-                                          // G_TYPE_INT,
-                                          // G_TYPE_BOOLEAN,
                                           G_TYPE_POINTER);
     fill_store(plugin_data.store);
   plugin_data.sort = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(plugin_data.store));
-  // gtk_tree_sortable_set_sort_column_id (GTK_TREE_SORTABLE (plugin_data.sort), COL_LINE, GTK_SORT_ASCENDING);
     gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
                                            sort_func, NULL, NULL);
   plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.sort), NULL);
