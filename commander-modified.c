@@ -407,15 +407,18 @@ static const gchar *get_tag_label(gint tag_type)
 }
 
 /* utf8 */
-gchar *get_project_rel_path(const gchar *utf8_parent, const gchar *utf8_descendant)
+gchar *get_project_rel_path(GeanyProject *project, TMSourceFile *file)
 {
+  if(project == NULL){
+    return utils_get_utf8_from_locale(file->short_name);
+  }
 	GFile *gf_parent, *gf_descendant;
 	gchar *locale_parent, *locale_descendant;
 	gchar *locale_ret, *utf8_ret;
   GString *proj = g_string_new("Project -> ");
 
-	locale_parent = utils_get_locale_from_utf8(utf8_parent);
-	locale_descendant = utils_get_locale_from_utf8(utf8_descendant);
+	locale_parent = utils_get_locale_from_utf8(project->base_path);
+	locale_descendant = utils_get_locale_from_utf8(file->file_name);
 	gf_parent = g_file_new_for_path(locale_parent);
 	gf_descendant = g_file_new_for_path(locale_descendant);
 
@@ -437,11 +440,6 @@ static void
 store_populate_tag_items_for_current_doc (GtkListStore  *store)
 {
     GPtrArray *tags_array = geany_data->app->tm_workspace->tags_array;
-    GeanyProject *project = geany_data->app->project;
-    gchar *proj_path;
-    if(project != NULL){
-      proj_path = project->base_path;
-    }
     if(tags_array->len > 0){
       GeanyDocument *doc = document_get_current();
     const gchar *taglabel;
@@ -449,7 +447,7 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
   TMTag *tag;
     for (i = 0; i < tags_array->len; ++i)
 	{
-        tag = TM_TAG(tags_array->pdata[i]);
+        tag = tags_array->pdata[i];
         if(!tag->file){
           continue;
         }
@@ -473,7 +471,7 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
           case GEANY_FILETYPES_YAML:
             continue;
         }
-      gchar *tag_path = (proj_path == NULL)?tag->file->short_name:get_project_rel_path(proj_path, tag->file->file_name);
+      gchar *tag_path = get_project_rel_path(geany_data->app->project, tag->file);
          gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s [%ld]\n<small>%s</small>",
                                              taglabel,
                                              tag->name, tag->line,
