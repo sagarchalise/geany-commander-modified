@@ -184,6 +184,7 @@ sort_func (GtkTreeModel  *model,
   if(key_length > check){
     scorea = get_score(key, taga->name);
     scoreb = get_score(key, tagb->name);
+    msgwin_status_add("%d %d %s %s", scorea, scoreb, taga->name, tagb->name);
   }
   else{
     scorea = taga->line;
@@ -213,14 +214,14 @@ visible_func (GtkTreeModel *model,
   const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
   key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
   gboolean visible = TRUE;
-  gint check = 1;
+  gint check = 0;
   gint score = -1;
   if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
       visible = utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc));
   }
   if (g_str_has_prefix (key, "@")) {
     key += 1;
-    check = 2;
+    check = 1;
     visible = !visible;
   }
   if(key_length > check && visible){
@@ -238,7 +239,9 @@ on_entry_text_notify (GObject    *object,
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
-    gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (plugin_data.sort));
+  gtk_tree_model_sort_reset_default_sort_func(GTK_TREE_MODEL_SORT (plugin_data.sort));
+  gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
+                                           sort_func, NULL, NULL);
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -331,6 +334,7 @@ on_entry_activate (GtkEntry  *entry,
 {
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
     tree_view_activate_focused_row (view);
+  
 }
 
 static gboolean
