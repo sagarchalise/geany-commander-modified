@@ -220,6 +220,7 @@ visible_func (GtkTreeModel *model,
     key += 1;
     check = 1;
     visible = !visible;
+    gtk_list_store_clear(plugin_data.store);
   }
   if(key_length > check && visible){
     score = get_score(key, tag->name);
@@ -437,17 +438,19 @@ gchar *get_project_rel_path(GeanyProject *project, TMSourceFile *file)
 }
 
 static void
-store_populate_tag_items_for_current_doc (GtkListStore  *store)
+fill_store (GtkListStore *store, gboolean cur_doc)
 {
-    GPtrArray *tags_array = geany_data->app->tm_workspace->tags_array;
-    if(tags_array->len > 0){
       GeanyDocument *doc = document_get_current();
+    if(cur_doc && !DOC_VALID(doc)){
+        return;
+    }
+    GPtrArray *tags_array = (cur_doc)?doc->tm_file->tags_array:geany_data->app->tm_workspace->tags_array;
+    if(tags_array->len > 0){
     const gchar *taglabel;
     gint i;
-  TMTag *tag;
     for (i = 0; i < tags_array->len; ++i)
 	{
-        tag = tags_array->pdata[i];
+        TMTag *tag = tags_array->pdata[i];
         if(!tag->file){
           continue;
         }
@@ -486,11 +489,6 @@ store_populate_tag_items_for_current_doc (GtkListStore  *store)
     }
 }
 
-static void
-fill_store (GtkListStore *store)
-{
-	store_populate_tag_items_for_current_doc(store);
-}
 static void
 on_panel_show (GtkWidget *widget,
                gpointer   dummy)
@@ -551,7 +549,7 @@ create_panel (void)
     plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           G_TYPE_STRING,
                                           G_TYPE_POINTER);
-    fill_store(plugin_data.store);
+    fill_store(plugin_data.store, TRUE);
   plugin_data.sort = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(plugin_data.store));
     gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
                                            sort_func, NULL, NULL);
