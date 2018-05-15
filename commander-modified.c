@@ -87,12 +87,11 @@ struct {
   GtkWidget    *entry;
   GtkWidget    *view;
   GtkListStore *store;
-  GtkTreeModel *filter;
   GtkTreeModel *sort;
 } plugin_data = {
   NULL, NULL,
   NULL, NULL,
-  NULL, NULL
+  NULL
 };
 enum {
   COL_LABEL,
@@ -100,19 +99,19 @@ enum {
   COL_COUNT
 };
 gint get_score(const gchar *key, const gchar *name){
-    gint score = 0; //no match
+    gint score = 1; //no match
 
     if (key == NULL || name == NULL) {
         return score;
     }
     if(utils_str_equal(name, key)){
-      score = 1;
+      score = -2;
     }
     else if (g_str_has_prefix(name, key)){
-      score = 2;
+      score = -1;
     }
     else if (strstr(name, key) != NULL){
-      score = 3;
+      score = 0;
     }
     return score;
 }
@@ -152,13 +151,8 @@ tree_view_set_cursor_from_iter (GtkTreeView *view,
   GtkTreeModel *model = gtk_tree_view_get_model (view);
   TMTag *tag;
   gtk_tree_model_get(model, iter, COL_TAG, &tag, -1);
-  GeanyDocument *cur_doc = document_get_current();
-  if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
-    if(utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc))){
-      jump_to_symbol(tag->name, (gint)tag->line);
-      gtk_tree_path_free (path);
-    }
-  }
+  jump_to_symbol(tag->name, (gint)tag->line);
+  gtk_tree_path_free (path);
 }
 static gint
 sort_func (GtkTreeModel  *model,
@@ -174,12 +168,7 @@ sort_func (GtkTreeModel  *model,
   gtk_tree_model_get (model, b, COL_TAG, &tagb, -1);
   const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
   guint key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
-  gint check = 1;
-  if (g_str_has_prefix (key, "@")) {
-    key += 1;
-    check = 2;
-  }
-  if(key_length > check){
+  if(key_length > 1){
     scorea = get_score(key, taga->name);
     scoreb = get_score(key, tagb->name);
   }
@@ -187,47 +176,8 @@ sort_func (GtkTreeModel  *model,
     scorea = taga->line;
     scoreb = tagb->line;
   }
-  if(scorea == scoreb){
-      return 0;
-    }
-    if(scorea > scoreb){
-      return 1;
-    }
-    if(scorea < scoreb){
-      return -1;
-    }
-
+  return scorea - scoreb;
 }
-static gboolean
-visible_func (GtkTreeModel *model,
-              GtkTreeIter  *iter,
-              gpointer      data)
-{
-  TMTag *tag;
-  //atleast 2 chars  should  be  available for comparison
-  guint16 key_length;
-  GeanyDocument *cur_doc = document_get_current();
-  gtk_tree_model_get (model, iter, COL_TAG, &tag, -1);
-  const gchar  *key   = gtk_entry_get_text (GTK_ENTRY (plugin_data.entry));
-  key_length = gtk_entry_get_text_length(GTK_ENTRY (plugin_data.entry));
-  gboolean visible = TRUE;
-  gint check = 0;
-  gint score = -1;
-  if (tag->file->file_name != NULL && DOC_VALID(cur_doc)){
-      visible = utils_str_equal(tag->file->file_name, DOC_FILENAME(cur_doc));
-  }
-  if (g_str_has_prefix (key, "@")) {
-    key += 1;
-    check = 1;
-    visible = !visible;
-    gtk_list_store_clear(plugin_data.store);
-  }
-  if(key_length > check && visible){
-    score = get_score(key, tag->name);
-  }
-  return (score == 0)?FALSE:visible;
-}
- 
 static void
 on_entry_text_notify (GObject    *object,
                       GParamSpec *pspec,
@@ -236,10 +186,11 @@ on_entry_text_notify (GObject    *object,
   GtkTreeIter   iter;
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
   GtkTreeModel *model = gtk_tree_view_get_model (view);
-  gtk_tree_model_sort_reset_default_sort_func(GTK_TREE_MODEL_SORT (plugin_data.sort));
-  gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
+  if(model){
+  gtk_tree_model_sort_reset_default_sort_func (GTK_TREE_MODEL_SORT (model));
+  gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (model),
                                            sort_func, NULL, NULL);
-  gtk_tree_model_filter_refilter(GTK_TREE_MODEL_FILTER(model));
+  }
    if (gtk_tree_model_get_iter_first (model, &iter)) {
      tree_view_set_cursor_from_iter (view, &iter);
    }
@@ -332,7 +283,7 @@ on_entry_activate (GtkEntry  *entry,
 {
   GtkTreeView  *view  = GTK_TREE_VIEW (plugin_data.view);
     tree_view_activate_focused_row (view);
-  
+
 }
 
 static gboolean
@@ -407,45 +358,17 @@ static const gchar *get_tag_label(gint tag_type)
 	return NULL;
 }
 
-/* utf8 */
-gchar *get_project_rel_path(GeanyProject *project, TMSourceFile *file)
-{
-  if(project == NULL){
-    return utils_get_utf8_from_locale(file->short_name);
-  }
-	GFile *gf_parent, *gf_descendant;
-	gchar *locale_parent, *locale_descendant;
-	gchar *locale_ret, *utf8_ret;
-  GString *proj = g_string_new("Project -> ");
-
-	locale_parent = utils_get_locale_from_utf8(project->base_path);
-	locale_descendant = utils_get_locale_from_utf8(file->file_name);
-	gf_parent = g_file_new_for_path(locale_parent);
-	gf_descendant = g_file_new_for_path(locale_descendant);
-
-	locale_ret = g_file_get_relative_path(gf_parent, gf_descendant);
-	g_string_append(proj, locale_ret);
-  utf8_ret = utils_get_utf8_from_locale(proj->str);
-
-	g_object_unref(gf_parent);
-	g_object_unref(gf_descendant);
-	g_free(locale_parent);
-	g_free(locale_descendant);
-	g_free(locale_ret);
-  g_string_free(proj, TRUE);
-
-	return utf8_ret;
-}
-
 static void
-fill_store (GtkListStore *store, gboolean cur_doc)
+fill_store (GtkListStore *store)
 {
-      GeanyDocument *doc = document_get_current();
-    if(cur_doc && !DOC_VALID(doc)){
+    GeanyDocument *doc = document_get_current();
+    if(!DOC_VALID(doc)){
         return;
     }
-    GPtrArray *tags_array = (cur_doc)?doc->tm_file->tags_array:geany_data->app->tm_workspace->tags_array;
-    if(tags_array->len > 0){
+    GPtrArray *tags_array = doc->tm_file->tags_array;
+    if(tags_array->len < 1){
+      return;
+    }
     const gchar *taglabel;
     gint i;
     for (i = 0; i < tags_array->len; ++i)
@@ -456,36 +379,19 @@ fill_store (GtkListStore *store, gboolean cur_doc)
         }
         if(tag->type == tm_tag_externvar_t || tag->type == tm_tag_prototype_t)
         continue;
-        
+
         taglabel = get_tag_label(tag->type);
         if(taglabel == NULL){
           continue;
         }
-        GeanyFiletype *ft = filetypes_detect_from_file(tag->file->file_name);
-        switch(ft->id){
-          case GEANY_FILETYPES_CMAKE:
-          case GEANY_FILETYPES_CONF:
-          case GEANY_FILETYPES_CSS:
-          case GEANY_FILETYPES_DIFF:
-          case GEANY_FILETYPES_HTML:
-          case GEANY_FILETYPES_LATEX:
-          case GEANY_FILETYPES_XML:
-          case GEANY_FILETYPES_PO:
-          case GEANY_FILETYPES_YAML:
-            continue;
-        }
-      gchar *tag_path = get_project_rel_path(geany_data->app->project, tag->file);
-         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s [%ld]\n<small>%s</small>",
+         gchar *label = g_markup_printf_escaped ("<small>(<i>%s</i>)</small> %s [%ld]",
                                              taglabel,
-                                             tag->name, tag->line,
-                                             tag_path);
+                                             tag->name, tag->line);
         gtk_list_store_insert_with_values (store, NULL, -1,
                                        COL_LABEL, label,
                                        COL_TAG, tag,
                                        -1);
         g_free(label);
-        g_free(tag_path);
-    }
     }
 }
 
@@ -549,20 +455,17 @@ create_panel (void)
     plugin_data.store = gtk_list_store_new (COL_COUNT,
                                           G_TYPE_STRING,
                                           G_TYPE_POINTER);
-    fill_store(plugin_data.store, TRUE);
+    fill_store(plugin_data.store);
   plugin_data.sort = gtk_tree_model_sort_new_with_model(GTK_TREE_MODEL(plugin_data.store));
     gtk_tree_sortable_set_default_sort_func (GTK_TREE_SORTABLE (plugin_data.sort),
                                            sort_func, NULL, NULL);
-  plugin_data.filter = gtk_tree_model_filter_new (GTK_TREE_MODEL (plugin_data.sort), NULL);
-  gtk_tree_model_filter_set_visible_func(GTK_TREE_MODEL_FILTER(plugin_data.filter), visible_func, NULL, NULL);
-
   scroll = g_object_new (GTK_TYPE_SCROLLED_WINDOW,
                          "hscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          "vscrollbar-policy", GTK_POLICY_AUTOMATIC,
                          NULL);
   gtk_box_pack_start (GTK_BOX (box), scroll, TRUE, TRUE, 0);
 
-  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (plugin_data.filter));
+  plugin_data.view = gtk_tree_view_new_with_model (GTK_TREE_MODEL (plugin_data.sort));
   gtk_widget_set_can_focus (plugin_data.view, FALSE);
   gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (plugin_data.view), FALSE);
   cell = gtk_cell_renderer_text_new ();
@@ -581,11 +484,26 @@ create_panel (void)
 static void
 on_kb_show_panel (guint key_id)
 {
-  
-  GPtrArray *tags_array = geany_data->app->tm_workspace->tags_array;
-  if(tags_array->len > 0){
-    create_panel();
-    gtk_widget_show (plugin_data.panel);
+  GeanyDocument *doc = document_get_current();
+  if(!DOC_VALID(doc)){
+    return;
+  }
+  switch(doc->file_type->id){
+          case GEANY_FILETYPES_CMAKE:
+          case GEANY_FILETYPES_NONE:
+          case GEANY_FILETYPES_CONF:
+          case GEANY_FILETYPES_CSS:
+          case GEANY_FILETYPES_DIFF:
+          case GEANY_FILETYPES_HTML:
+          case GEANY_FILETYPES_LATEX:
+          case GEANY_FILETYPES_XML:
+          case GEANY_FILETYPES_PO:
+          case GEANY_FILETYPES_YAML:
+            return;
+      }
+  if(doc->tm_file && doc->tm_file->tags_array->len > 0){
+     create_panel();
+     gtk_widget_show (plugin_data.panel);
   }
 }
 
